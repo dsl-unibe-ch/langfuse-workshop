@@ -23,7 +23,9 @@ This checkpoint intentionally contains the same untraced base app as `checkpoint
 
 ## Step 1 — Get the API keys
 
-1. **OpenAI** — [platform.openai.com](https://platform.openai.com) → API Keys → create one. Copy the `sk-...` value.
+1. **Model provider** — use either an OpenAI Platform key or Azure OpenAI deployment.
+   - OpenAI Platform: [platform.openai.com](https://platform.openai.com) → API Keys → create one. Copy the `sk-...` value.
+   - Azure OpenAI: add Azure OpenAI API key, endpoint, deployment name, and API version.
 2. **Langfuse** — sign up at [langfuse.com](https://langfuse.com) on the **EU region**, create a project, and copy the public + secret keys from **Settings → API Keys**.
 
 ## Step 2 — Install the Langfuse skill and CLI
@@ -50,9 +52,23 @@ npx skills add langfuse/skills --skill "langfuse"
 cp .env.example .env
 ```
 
-Fill in:
+Azure OpenAI is the default for this workshop. Fill in:
 
 ```bash
+OPENAI_PROVIDER=azure
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT=your-chat-deployment-name
+AZURE_OPENAI_API_VERSION=2024-10-01-preview
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+```
+
+If you are using OpenAI Platform instead, fill in:
+
+```bash
+OPENAI_PROVIDER=openai
 OPENAI_API_KEY=sk-...
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...

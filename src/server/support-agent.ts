@@ -1,8 +1,14 @@
-import OpenAI from "openai";
+import type {
+  ChatCompletionMessage,
+  ChatCompletionMessageParam
+} from "openai/resources/chat/completions";
 import type { ChatMessage, ChatRequest, ChatResponse } from "../shared/types";
 import { env } from "./env";
+import { createOpenAIClient } from "./openai-client";
 import { getSupportContext } from "./support-data";
 import { TOOL_DEFINITIONS, executeTool } from "./tools";
+import { observeOpenAI } from "@langfuse/openai";
+import { observe } from "@langfuse/tracing";
 
 export const SYSTEM_PROMPT = `You are Dad IT Support Agent.
 You are talking directly to Dad. He opened this chat himself to get help with his iPhone.
@@ -20,22 +26,25 @@ Rules:
 - Do not invent button names or settings paths that were not confirmed by tool results.
 `;
 
+// Convert the browser chat shape into the message shape expected by the SDK.
 function toOpenAIMessages(
   messages: ChatMessage[]
-): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+): ChatCompletionMessageParam[] {
   return messages.map((message) => ({
     role: message.role,
     content: message.content
   }));
 }
 
-function readAssistantText(message: OpenAI.Chat.Completions.ChatCompletionMessage) {
+// The final assistant answer is plain text; tool-call messages have no answer text.
+function readAssistantText(message: ChatCompletionMessage) {
   if (typeof message.content === "string") {
     return message.content.trim();
   }
   return "";
 }
 
+// Tool arguments arrive as a JSON string from the model.
 function parseToolArguments(argumentsText: string) {
   try {
     const parsed = JSON.parse(argumentsText);
@@ -48,20 +57,24 @@ function parseToolArguments(argumentsText: string) {
   }
 }
 
-export async function runSupportConversation(request: ChatRequest): Promise<ChatResponse> {
+// Run one complete chat turn for the Dad IT support agent.
+async function runSupportConversationInner(request: ChatRequest): Promise<ChatResponse> {
   const context = getSupportContext();
-  const openai = new OpenAI({ apiKey: env.openaiApiKey });
+  // Create the provider-specific client, then wrap it so Langfuse traces each model call.
+  const openai = observeOpenAI(createOpenAIClient());
 
-  const transcript: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+  // Start the transcript with system instructions, followed by Dad's visible chat history.
+  const transcript: ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
     ...toOpenAIMessages(request.messages)
   ];
   const usedTools = new Set<string>();
   let finalAnswer = "";
 
+  // Let the model call tools and continue until it returns a normal assistant answer.
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const response = await openai.chat.completions.create({
-      model: env.openaiModel,
+      model: env.chatModel,
       messages: transcript,
       tools: TOOL_DEFINITIONS,
       tool_choice: "auto"
@@ -71,7 +84,7 @@ export async function runSupportConversation(request: ChatRequest): Promise<Chat
     if (!message) {
       throw new Error("OpenAI returned no assistant message.");
     }
-    transcript.push(message as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+    transcript.push(message as ChatCompletionMessageParam);
 
     const toolCalls = message.tool_calls ?? [];
     if (toolCalls.length === 0) {
@@ -79,6 +92,7 @@ export async function runSupportConversation(request: ChatRequest): Promise<Chat
       break;
     }
 
+    // Execute each requested local tool and append the result for the next model call.
     for (const toolCall of toolCalls) {
       if (toolCall.type !== "function") continue;
       usedTools.add(toolCall.function.name);
@@ -95,18 +109,25 @@ export async function runSupportConversation(request: ChatRequest): Promise<Chat
     }
   }
 
+  // Avoid returning an empty response if the tool-calling loop hits the attempt limit.
   if (!finalAnswer) {
     finalAnswer =
       "I ran out of room before finishing that answer. Please ask the question once more in a slightly shorter way.";
   }
 
+  // Return the answer plus lightweight metadata used by the client and workshop checks.
   return {
     answer: finalAnswer,
     usedTools: [...usedTools],
     traceMeta: {
       contextId: context.id,
       contextLabel: context.label,
-      model: env.openaiModel
+      model: env.chatModel
     }
   };
 }
+
+export const runSupportConversation = observe(runSupportConversationInner, {
+  name: "dad-it-support-chat-turn",
+  asType: "agent"
+});

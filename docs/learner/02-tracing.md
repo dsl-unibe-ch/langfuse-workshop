@@ -11,7 +11,7 @@ description: "Instrument the support agent so one chat turn becomes a nested Lan
 git checkout checkpoint/02-tracing
 ```
 
-This is the blank slate for the tracing step — same code as `checkpoint/01-base-app`, with no Langfuse wiring yet. The Langfuse packages are already in `package.json` — run `npm install` if you haven't. Make sure `.env` has your `OPENAI_API_KEY` and Langfuse keys.
+This is the blank slate for the tracing step — same code as `checkpoint/01-base-app`, with no Langfuse wiring yet. The Langfuse packages are already in `package.json` — run `npm install` if you haven't. Make sure `.env` has either your OpenAI Platform values or your Azure OpenAI values, plus your Langfuse keys.
 
 ## Why we trace
 
@@ -78,17 +78,18 @@ import { observeOpenAI } from "@langfuse/openai";
 Then **wrap the OpenAI client where you create it**. Find this line in `runSupportConversation`:
 
 ```ts
-const openai = new OpenAI({ apiKey: env.openaiApiKey });
+const openai = createOpenAIClient();
 ```
 
 and change it to:
 
 ```ts
-const openai = observeOpenAI(new OpenAI({ apiKey: env.openaiApiKey }));
+const openai = observeOpenAI(createOpenAIClient());
 ```
 
-That's the entire diff. No factory function, no separate raw client — `observeOpenAI` wraps the OpenAI client inline at the call site, and `openai.chat.completions.create(...)` below it now emits a trace for every call.
+That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps the returned client at the call site. `openai.chat.completions.create(...)` below it now emits a trace for every call.
 
+At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the OpenAI calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
 
 **Verify:** `npm run dev`, ask one question, refresh Langfuse — you should see one generation per OpenAI call with prompt, response, tokens, and latency. Each generation is still its own top-level trace; we fix that next.
 
@@ -130,6 +131,19 @@ export const runSupportConversation = observe(runSupportConversationInner, {
 
 `index.ts` still imports `runSupportConversation` the same way. `observe(...)` auto-captures the function argument as the trace input and the return value as the trace output.
 
+The reason for the `Inner` rename is to separate the implementation from the exported API. `runSupportConversationInner(...)` still contains the real agent logic, but it is no longer exported directly. The exported `runSupportConversation` is now the Langfuse-wrapped version. That means the rest of the app keeps calling the same function name, while Langfuse gets a parent `agent` observation around the whole turn.
+
+The call stack now looks like this:
+
+```text
+index.ts
+  calls runSupportConversation(...)
+    Langfuse starts dad-it-support-chat-turn
+      runSupportConversationInner(...) runs the agent loop
+        observeOpenAI(...) records each model call underneath
+    Langfuse records the final ChatResponse as the parent output
+```
+
 **Verify:** one chat turn should now show up as a single `dad-it-support-chat-turn` observation with the OpenAI generation nested underneath.
 
 ![Trace tree after Step 2 — one dad-it-support-chat-turn agent root with the OpenAI generation as a child.](../images/tracing/02-tracing-step-2.png)
@@ -143,6 +157,15 @@ The OpenAI generation already mentions the tool calls in its `tool_calls` output
 ### `src/server/tools.ts`
 
 Add the import and the two observed helpers above `executeTool`, then redirect the switch at them. `TOOL_DEFINITIONS` stays untouched.
+
+Keep the difference between two pieces of code clear:
+
+- `TOOL_DEFINITIONS` is only the schema sent to the model. It tells the model which tools exist and which arguments each tool accepts.
+- `executeTool(...)` is the local dispatcher. It receives the tool name chosen by the model and runs the matching TypeScript function.
+
+Before this step, Langfuse can see that the model requested a tool call because that request appears in the OpenAI generation output. But Langfuse cannot yet see the actual local work: what `getSupportContext()` returned, what question went into `searchGuides(...)`, or which guide results came back.
+
+The fix is to move each local tool body into a small observed helper. Then `executeTool(...)` keeps the same public contract, but routes to those observed helpers instead of doing the work inline.
 
 ```ts
 import { observe } from "@langfuse/tracing";
@@ -197,6 +220,17 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       return { ok: false, error: `Unsupported tool: ${name}` };
   }
 }
+```
+
+After this change, the model's tool request and the local tool execution are both visible:
+
+```text
+dad-it-support-chat-turn
+  openai-chat-completion     model asks to call get_support_context
+  get_support_context        local tool runs and returns Dad's context
+  openai-chat-completion     model asks to call search_help_library
+  search_help_library        local tool runs and returns guide matches
+  openai-chat-completion     model writes the final answer
 ```
 
 ![Full trace after Step 3 — dad-it-support-chat-turn (agent) with the OpenAI generation and get_support_context + search_help_library tool observations as siblings underneath.](../images/tracing/02-tracing-step-3.png)
