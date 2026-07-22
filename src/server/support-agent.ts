@@ -7,8 +7,11 @@ import { env } from "./env";
 import { createOpenAIClient } from "./openai-client";
 import { getSupportContext } from "./support-data";
 import { TOOL_DEFINITIONS, executeTool } from "./tools";
+import { LangfuseClient } from "@langfuse/client";
 import { observeOpenAI } from "@langfuse/openai";
 import { observe } from "@langfuse/tracing";
+
+const langfuse = new LangfuseClient();
 
 export const SYSTEM_PROMPT = `You are Dad IT Support Agent.
 You are talking directly to Dad. He opened this chat himself to get help with his iPhone.
@@ -25,6 +28,15 @@ Rules:
 - If the request is out of scope, say so kindly and redirect to the closest iPhone-help you can give.
 - Do not invent button names or settings paths that were not confirmed by tool results.
 `;
+
+// Fetch the managed prompt if it exists; fall back locally if Langfuse is unavailable.
+async function getPrompt() {
+  try {
+    return await langfuse.prompt.get(env.langfusePromptName);
+  } catch {
+    return null;
+  }
+}
 
 // Convert the browser chat shape into the message shape expected by the SDK.
 function toOpenAIMessages(
@@ -58,14 +70,22 @@ function parseToolArguments(argumentsText: string) {
 }
 
 // Run one complete chat turn for the Dad IT support agent.
+// So index.ts can still import runSupportConversation exactly as before, but Langfuse should now show one parent dad-it-
+// support-chat-turn agent observation with the OpenAI generation nested underneath.
 async function runSupportConversationInner(request: ChatRequest): Promise<ChatResponse> {
   const context = getSupportContext();
-  // Create the provider-specific client, then wrap it so Langfuse traces each model call.
-  const openai = observeOpenAI(createOpenAIClient());
+  const langfusePrompt = await getPrompt();
+  // Keep the local constant as a fallback so the chat still works before the prompt is published.
+  const systemPrompt = langfusePrompt?.prompt ?? SYSTEM_PROMPT;
+  // Keep Azure/OpenAI provider selection in the factory, and pass the prompt so generations get the Prompt badge.
+  const openai = observeOpenAI(
+    createOpenAIClient(),
+    langfusePrompt ? { langfusePrompt } : undefined
+  );
 
   // Start the transcript with system instructions, followed by Dad's visible chat history.
   const transcript: ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...toOpenAIMessages(request.messages)
   ];
   const usedTools = new Set<string>();
@@ -127,6 +147,9 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
   };
 }
 
+// observe(...) creates a Langfuse parent span around the whole function call.
+// So everything that happens inside runSupportConversationInner, including observeOpenAI(...) model calls, becomes
+// nested under one parent trace.
 export const runSupportConversation = observe(runSupportConversationInner, {
   name: "dad-it-support-chat-turn",
   asType: "agent"
