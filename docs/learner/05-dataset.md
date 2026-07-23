@@ -81,6 +81,16 @@ For this workshop we use the programmatic path because we already have a curated
 npm run dataset:seed
 ```
 
+The npm command is only the shortcut. Programmatically, the upload happens in [`scripts/seed-dataset.ts`](../../scripts/seed-dataset.ts). That script reads items from [`data/seed-dataset.json`](../../data/seed-dataset.json), creates or reuses the Langfuse dataset named by `DATASET_NAME` in `.env`, and uploads each item.
+
+```text
+data/seed-dataset.json
+  -> scripts/seed-dataset.ts
+  -> Langfuse dataset
+```
+
+Use `npm run dataset:seed` during the workshop, and inspect or adapt `scripts/seed-dataset.ts` when you want to understand or customize the programmatic upload.
+
 Open Langfuse → **Datasets**. The list view should show the new `dad-it-support-workshop` dataset with 14 items and 0 experiment runs (so far):
 
 ![Datasets list view in Langfuse — dad-it-support-workshop with 14 items and no runs yet.](../images/datasets/05-dataset-list.png)
