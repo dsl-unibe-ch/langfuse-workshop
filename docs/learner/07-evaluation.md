@@ -30,10 +30,10 @@ This is also what lets you close the loop and **ship with confidence**: when the
 
 This chapter is framed around prompt iteration because changing the prompt is the lowest-friction lever. The same workflow applies if you change:
 
-- **The model** — try a stronger or cheaper one and rerun.
-- **The context** — add or remove fields from the system prompt or tool results.
-- **The agent architecture** — add a tool, change tool ordering, change retries.
-- **The prompt** — what we'll do here.
+- **The model** — change which model powers the agent, then rerun. For example, try a stronger model to improve correctness, or a cheaper/faster deployment to reduce cost and latency. The experiment tells you whether the tradeoff is worth it.
+- **The context** — change the runtime information the model receives in addition to the prompt. In this app, that mostly means the data returned by tools such as `get_support_context` or `search_help_library`: Dad's iOS version, installed apps, device details, or guide results. The prompt tells the model how to behave; context gives it the facts to reason with.
+- **The agent architecture** — change how the agent workflow is organized. For example, add a new tool, change when tools are called, require `get_support_context` before answering, or add retries for invalid tool arguments. This is deeper than prompt editing because it changes the steps the agent can take.
+- **The prompt** — change the instructions the model follows. This is what we'll do here because it is the lowest-friction lever: one rule changes, then we rerun the same dataset to see whether behavior improved.
 
 The shape is always the same: change *one* thing (or a configuration of multiple variables), rerun the dataset, compare runs side by side.
 
@@ -44,7 +44,7 @@ Change something in the prompt and improve the experiment results — measured b
 
 Three passes:
 
-1. **Change one thing** — swap the prompt variant or edit in the Langfuse UI.
+1. **Change one thing** — edit the prompt in code and publish it, or edit it directly in Langfuse.
 2. **Rerun the dataset** against the new prompt.
 3. **Compare runs** side by side and decide whether to ship.
 
@@ -58,21 +58,31 @@ That makes the out-of-scope behaviour explicit instead of letting the model impr
 
 Two ways to make the change:
 
-**Option A — Langfuse-side (edit in the UI, recommended):**
+**Option A — Code-side (recommended for this workshop):**
 
-Prompts → `dad-it-support-agent` → edit body → add the rule above into the **Rules** section → save as a new version → promote the new version to the `production` label. The resolver fetches by label, so the next request picks up the new version automatically. This is the workflow your team will use for ongoing iteration in production.
-
-![Review Prompt Changes in Langfuse — side-by-side diff between v1 and the draft with the new out-of-scope rule highlighted, ready to save as a new version and promote to production.](../images/evaluate-a-change/07-evaluate-a-change-prompt-diff.png)
-
-**Option B — Code-side (edit `src/server/support-agent.ts` and republish):**
-
-Open `src/server/support-agent.ts`, add the same rule into the `SYSTEM_PROMPT` constant's Rules block, then publish:
+Open `src/server/support-agent.ts`, add the rule into the `SYSTEM_PROMPT` constant's Rules block, then publish:
 
 ```bash
 npm run prompt:publish
 ```
 
-The repo also ships a `gentler` variant you can switch to as-is (`WORKSHOP_PROMPT_VARIANT=gentler npm run prompt:publish`) — useful if you just want to see *any* prompt change rather than design your own.
+This keeps the workshop repository and Langfuse aligned: the prompt change is visible in Git, and the same prompt is published into Langfuse as a new version. 
+
+The repo also ships a `gentler` variant you can switch to as-is:
+
+```bash
+WORKSHOP_PROMPT_VARIANT=gentler npm run prompt:publish
+```
+
+That is useful if you just want to see *any* prompt change rather than design your own.
+
+![Review Prompt Changes in Langfuse — side-by-side diff between v1 and the draft with the new out-of-scope rule highlighted, ready to save as a new version and promote to production.](../images/evaluate-a-change/07-evaluate-a-change-prompt-diff.png)
+
+**Option B — Langfuse-side (edit in the UI):**
+
+Prompts → `dad-it-support-agent` → edit body → add the rule above into the **Rules** section → save as a new version → promote the new version to the `production` label. The resolver fetches by label, so the next request picks up the new version automatically.
+
+This is a good operational workflow when your team wants to iterate prompts in Langfuse without changing code. The tradeoff is that `src/server/support-agent.ts` does not change when you edit the prompt in the UI, so the repository and the active Langfuse prompt can differ. Which option is better depends on your team's needs: code-side changes are easier to version with the app, while UI-side changes are faster for prompt iteration and review inside Langfuse.
 
 Either way you end up with a new prompt version, and the next `runSupportConversation(...)` call uses it.
 
