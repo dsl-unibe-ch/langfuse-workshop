@@ -15,12 +15,12 @@ You have walked through every loop step.
 
 ## What you should be able to do now
 
-- Trace an LLM app end-to-end and read the result as a debugging surface.
-- Connect prompts to traces so a prompt change has a measurable next-trace effect.
-- Detect interesting production behavior (out-of-scope, disagreement) automatically.
-- Turn product scope into a starter dataset of realistic examples.
-- Run experiments on the same agent code with no parallel implementation.
-- Compare runs after changes and decide which setup is better — by score and by reading individual outputs.
+- Trace an LLM app end-to-end and read the result as a debugging surface (**02 Tracing**).
+- Connect prompts to traces so a prompt change has a measurable next-trace effect (**03 Prompt Management**).
+- Detect interesting production behavior, such as out-of-scope requests or user disagreement, automatically (**04 Monitoring**).
+- Create a reference dataset with realistic user questions, expected answers, and metadata (**05 Dataset**).
+- Run the agent code against every dataset item and score the results (**06 Experiments**).
+- Compare runs after changes and decide which setup is better — by score and by reading individual outputs (**07 Evaluate a Change**).
 
 
 ## Bigger picture
@@ -42,9 +42,27 @@ Langfuse in this workshop is a *shared surface*, not just observability:
 
 ## How to work on your own application
 
-When you go back to your own codebase, do this in order:
+When you go back to your own codebase, the goal is to connect *that* application to a Langfuse project in the same way this workshop app is connected.
 
-1. **Run the [Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)** so you can manage prompts, datasets, and runs from the terminal. The CLI uses the same project API keys as the SDKs, so there is no separate CLI login step. Keep those values in your application's local `.env`:
+The mental model is:
+
+```text
+your app/codebase
+  -> sends traces, prompts, datasets, experiment runs, and scores
+  -> Langfuse Cloud UI
+```
+
+Langfuse has three surfaces you will use together:
+
+- **Langfuse UI** — where you inspect traces, manage prompts, review datasets, and compare runs.
+- **Langfuse SDKs** — what your app uses in code to send traces, scores, prompts, and experiment data.
+- **Langfuse CLI** — a command-line interface for the same Langfuse project. It lets you interact with Langfuse from the terminal instead of clicking through the UI.
+
+They all point at the same Langfuse project through the same project API keys. 
+
+Do this in order:
+
+1. **Create or choose a Langfuse project** for your own app. Copy that project's API keys into your application's local `.env`:
 
    ```dotenv
    LANGFUSE_PUBLIC_KEY=pk-lf-...
@@ -52,7 +70,11 @@ When you go back to your own codebase, do this in order:
    LANGFUSE_BASE_URL=https://cloud.langfuse.com
    ```
 
-   Then run the CLI from a shell that has loaded that file:
+2. **Check that the [Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli) can reach that project.** The CLI is not required for tracing, but it is useful when you want Langfuse actions to be repeatable or automated.
+
+   Think of it as the terminal version of the UI. In the UI, you click through traces, prompts, datasets, and runs. With the CLI, you can ask for the same kinds of resources from a shell command. That makes it useful for scripts, CI/CD, coding agents, and repeatable analysis — for example, listing recent traces, checking whether a dataset exists, or inspecting scores without doing the same clicks by hand each time.
+
+   Run it from a shell that has loaded your `.env`:
 
    ```bash
    npx langfuse-cli api __schema
@@ -65,19 +87,19 @@ When you go back to your own codebase, do this in order:
    langfuse api __schema
    ```
 
-2. **Install the [Langfuse skill](https://github.com/langfuse/skills)** (`/langfuse`) — it packages the recommended tracing, prompt management, monitoring, and evaluator patterns from this workshop and applies them to your codebase without you hand-rolling each piece:
+3. **Install the [Langfuse skill](https://github.com/langfuse/skills)** (`/langfuse`) — it packages the recommended tracing, prompt management, monitoring, and evaluator patterns from this workshop and applies them to your codebase without you hand-rolling each piece:
 
    ```bash
    npx skills add langfuse/skills --skill "langfuse"
    ```
 
-3. **Pick the smallest LLM-using surface** you have and wire `observe(...)` + `observeOpenAI(...)` first. Get one trace before you do anything else.
+4. **Pick the smallest LLM-using surface** you have and wire `observe(...)` + `observeOpenAI(...)` first. Get one trace before you do anything else.
 
-4. **Add user/session information** only once you have at least two users or two sessions of traffic — there's no point until then.
+5. **Add user/session information** only once you have at least two users or two sessions of traffic — there's no point until then.
 
-5. **Build your first dataset *from real traces, discussions with experts, or past examples*** rather than from imagination. Production behavior will tell you over time what your dataset needs to cover.
+6. **Build your first dataset *from real traces, discussions with experts, or past examples*** rather than from imagination. Production behavior will tell you over time what your dataset needs to cover.
 
-6. **Run one experiment, change one thing, rerun.** Then repeat.
+7. **Run one experiment, change one thing, rerun.** Then repeat.
 
 For the bigger-picture material on each step, the [Langfuse Academy](https://langfuse.com/academy) has dedicated lessons:
 
