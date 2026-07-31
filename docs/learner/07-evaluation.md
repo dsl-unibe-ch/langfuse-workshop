@@ -104,7 +104,7 @@ Things to look for:
 
 - Two runs appear under the dataset, linked to different prompt versions.
 - Both scores (`keyword_overlap`, `correctness`) have averages you can compare.
-- If a score is still pending, refresh after the evaluator queue finishes.
+- If a score is missing, check whether `npm run dataset:run` finished successfully; in the main workshop path both scores are returned by the script.
 
 ## Wrap-up
 

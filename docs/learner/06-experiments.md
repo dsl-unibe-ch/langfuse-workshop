@@ -1,6 +1,6 @@
 ---
 title: "Workshop: Run Langfuse Experiments"
-description: "Run the support agent across the Langfuse dataset, attach a deterministic score in the experiment script, and inspect scored experiment runs."
+description: "Run the support agent across the Langfuse dataset, attach deterministic and LLM-as-a-judge scores in the experiment script, and inspect scored experiment runs."
 ---
 
 # 06 Experiments
@@ -24,9 +24,9 @@ A trace tells you about *one* turn. An experiment tells you about behavior *acro
 Different evaluators answer different questions. For a broader tour of evaluator types and when to pick which, see the [Langfuse Academy lesson on evaluate](https://langfuse.com/academy/evaluate). For this workshop we use two that give a quick first read on answer quality:
 
 - **`keyword_overlap`** (deterministic) — *did the answer cover the steps we expected?* Fast, cheap, and computed directly in the experiment script.
-- **`correctness`** (LLM-as-a-judge) — *is the answer actually correct?* More expressive, especially when the wording can vary but the underlying answer has to match the ideal.
+- **`correctness`** (LLM-as-a-judge) — *is the answer actually correct?* More expressive, especially when the wording can vary but the underlying answer has to match the ideal. In this workshop, the script calls the judge model directly and sends the score to Langfuse.
 
-This chapter uses a mixed setup on purpose: the cheap deterministic check lives in code right next to the experiment runner, while the semantic judge lives in Langfuse.
+This chapter keeps both evaluators in code on purpose. The deterministic check shows the cheapest possible scoring pattern, and the LLM-as-a-judge check shows the full programmatic path: prompt the judge, parse its response, and return a Langfuse score from the experiment runner.
 
 ## Goal
 
@@ -44,8 +44,18 @@ Open `scripts/run-dataset.ts`. The file is annotated with numbered comments (`//
 - For each item, calls the same `runSupportConversation(...)` the web app uses.
 - Uses `dataset.runExperiment(...)` to roll all per-item traces into a single run row.
 - Attaches a `keyword_overlap` score per item by comparing `expectedKeywords` against the agent's answer.
+- Attaches a `correctness` score per item by asking a judge model to compare the query, actual answer, and ideal answer.
 
-The traces produced are the same shape as production traces — same `dad-it-support-chat-turn` root, same OpenAI generation, same tool spans. We do not need extra UI setup for the deterministic score because it already lives in the script.
+Each dataset item creates a Langfuse trace. The tracing still looks like the chat traces you saw earlier:
+
+```text
+dad-it-support-chat-turn
+  openai-chat-completion
+  get_support_context
+  search_help_library
+```
+
+The scores come from the experiment script in the main workshop path: `keyword_overlap` is computed with a simple keyword check, and `correctness` is computed by the script's LLM judge. Besides implementing this programmatically in the script, Langfuse also gives you the option to configure the LLM-as-a-judge evaluator in the UI. In that UI-managed path, your script only sends the experiment output to Langfuse, and Langfuse runs the judge asynchronously afterward.
 
 ### `dataset.runExperiment(...)` — the moving parts
 
@@ -56,7 +66,7 @@ await dataset.runExperiment({
   name: "Dad IT Support Agent experiment",
   runName,           // unique label for this run; shows up in the Runs tab
   description: "...",
-  metadata: { model: env.openaiModel },
+  metadata: { model: env.chatModel, provider: env.openaiProvider },
   maxConcurrency: 1, // run items one at a time
 
   task: async (item) => {
@@ -69,7 +79,20 @@ await dataset.runExperiment({
       name: "keyword_overlap",
       value: keywordOverlap(output as string, (expectedOutput as any).expectedKeywords),
       comment: "..."
-    })
+    }),
+    async ({ input, output, expectedOutput }) => {
+      const judged = await judgeCorrectness({
+        query: (input as any).messages.at(-1)?.content ?? "",
+        actualAnswer: output as string,
+        idealAnswer: (expectedOutput as any).idealAnswer
+      });
+
+      return {
+        name: "correctness",
+        value: judged.score,
+        comment: judged.reason
+      };
+    }
   ]
 });
 ```
@@ -77,7 +100,7 @@ await dataset.runExperiment({
 Three things to understand:
 
 - **`task`** is *your application logic* — we call straight into `runSupportConversation(...)`, which means every trace this script produces looks identical to a production trace.
-- **`evaluators`** is a list. Each evaluator runs after `task` returns and attaches a score to the item trace. Here we use one deterministic evaluator, but you can add more over time.
+- **`evaluators`** is a list. Each evaluator runs after `task` returns and attaches a score to the item trace. Here we use one deterministic evaluator and one LLM-as-a-judge evaluator.
 - **`runName`** groups every per-item trace into one row in the Langfuse Runs view. Pick a name that changes per run (we include the timestamp) so two runs don't collide.
 
 ## Step 2 — Review the deterministic `keyword_overlap` evaluator
@@ -94,11 +117,41 @@ This is also a good default pattern for teams that want experiment logic to stay
 
 > Alternative: this same deterministic check could also be moved into a Langfuse code evaluator if you want to manage it in the platform instead of in the script. See the [Code evaluators docs](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators) and the [Experiments via SDK docs](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk).
 
-## Step 3 — Set up the `correctness` evaluator in Langfuse
+## Step 3 — Review the programmatic `correctness` evaluator
 
-Langfuse ships a **Correctness** LLM-as-a-judge template that compares an actual answer to an ideal answer and returns a score. We wire it up against the dataset runs so every item gets both the local deterministic score and a model-judged correctness score that shows up in the run comparison view.
+Inside `scripts/run-dataset.ts`, `judgeCorrectness(...)` implements the LLM-as-a-judge path in code. It compares three things:
 
-> Fresh project check: Correctness is an LLM-as-a-judge evaluator. If you did not configure the default evaluator model in session 4, do it now: open **Project Settings → LLM Connections**, add your OpenAI key, then return to **Evaluators → Set up evaluator** and save a default evaluator model such as `openai / gpt-4.1`. Keep the API key in the Langfuse secret field only; do not paste it into workshop transcripts or shared notes.
+- the user's latest question from the dataset input
+- the agent's actual answer from `task`
+- the ideal answer from `expectedOutput.idealAnswer`
+
+The helper uses `createOpenAIClient()`, the same Azure/OpenAI provider factory as the app. That keeps the experiment runner compatible with workshop environments that use Azure OpenAI instead of an OpenAI Platform key. The judge client is also wrapped with `observeOpenAI(...)`, so the evaluator's own model call is traced and can be inspected in Langfuse.
+
+The judge is asked to return JSON with a numeric `score` and a short `reason`. The evaluator then turns that into a Langfuse score named `correctness`:
+
+```ts
+return {
+  name: "correctness",
+  value: judged.score,
+  comment: judged.reason
+};
+```
+
+This is the key difference from the UI-managed path: here, `scripts/run-dataset.ts` owns the judge prompt, calls the judge model, parses the result, and sends the score to Langfuse.
+
+## Step 4 — Optional alternative: configure `correctness` in Langfuse
+
+The main workshop path above runs `correctness` from code. Langfuse can also run the same kind of LLM-as-a-judge evaluator for you from the UI. The logic moves to a different place:
+
+```text
+Script-run judge:
+scripts/run-dataset.ts runs the judge model and returns the correctness score.
+
+UI-managed judge:
+scripts/run-dataset.ts sends the experiment output to Langfuse, then Langfuse runs the judge and writes the correctness score later.
+```
+
+If you want to show the UI-managed alternative, configure it like this:
 
 1. In Langfuse, open **Evaluators → New evaluator** and pick the **Correctness** template.
 2. Target the runs from this dataset:
@@ -116,19 +169,21 @@ Langfuse ships a **Correctness** LLM-as-a-judge template that compares an actual
 4. Use the default judge model you configured in session 4 or in the fresh project check above, or pick another structured-output-capable judge model, and save.
 5. Enable the evaluator.
 
-Why target **Dataset runs** here? Because for this workshop we want `correctness` to appear on the dataset run items and in the run comparison view.
+Why target **Dataset runs** here? Because for this workshop we want the score to appear on the dataset run items and in the run comparison view.
+
+If you enable the UI-managed evaluator while the script also returns a score named `correctness`, you may see duplicate or competing correctness scores. For the main workshop path, use the script-run judge and treat this UI setup as an alternative demonstration.
 
 ![Correctness Variable Mapping](../images/experiments/correctness-variable-mapping.png)
 
-## Step 4 — Run the dataset
+## Step 5 — Run the dataset
 
 ```bash
 npm run dataset:run
 ```
 
-The script finishes by printing a formatted run summary in the console. Item-level traces and scores show up in Langfuse as the run executes, and the Correctness evaluator may continue filling in scores for a short time afterward because it runs asynchronously.
+The script finishes by printing a formatted run summary in the console. Item-level traces and scores show up in Langfuse as the run executes.
 
-The script attaches `keyword_overlap` itself. The Correctness evaluator you set up in Step 3 runs asynchronously in Langfuse over the new run rows shortly after.
+The script attaches both `keyword_overlap` and `correctness` itself. If you also configured the optional UI-managed evaluator in Step 4, that platform-side score may continue filling in for a short time afterward because it runs asynchronously in Langfuse.
 
 ## What to inspect in Langfuse
 
@@ -148,7 +203,7 @@ The script attaches `keyword_overlap` itself. The Correctness evaluator you set 
 
 The two scoring approaches give you two angles on the same run: **keyword match** for "did we cover the right steps?" and **correctness** for "is the answer actually right?" Real evaluation programs often combine deterministic and judge-based checks like this.
 
-If your team prefers more evaluator logic in the Langfuse UI, the deterministic check could also be migrated into a code evaluator later. The [Code evaluators docs](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators) cover that path, and the [Experiments via SDK docs](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk) show how the code-side setup fits together.
+If your team prefers more evaluator logic in the Langfuse UI, the correctness judge can be managed there instead, and the deterministic check could also be migrated into a code evaluator later. The [Code evaluators docs](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators) cover that path, and the [Experiments via SDK docs](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk) show how the code-side setup fits together.
 
 The [**Langfuse skill**](https://github.com/langfuse/skills) (`/langfuse`) knows the recommended evaluator shapes and setup patterns — this walkthrough exists so you see what the skill is doing under the hood. Learn more about experiments in the [Langfuse Academy lesson](https://langfuse.com/academy/experiments).
 
