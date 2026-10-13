@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { LangfuseClient } from "@langfuse/client";
 import { observeOpenAI } from "@langfuse/openai";
 import { observe, propagateAttributes } from "@langfuse/tracing";
 import type { ChatMessage, ChatRequest, ChatResponse } from "../shared/types";
@@ -7,7 +8,9 @@ import { createOpenAIClient } from "./openai-client";
 import { getSupportContext } from "./support-data";
 import { TOOL_DEFINITIONS, executeTool } from "./tools";
 
-// This local prompt defines the agent's role and remains the fallback in later lessons.
+// Local fallback used when Langfuse isn't reachable or the prompt
+// isn't published yet. scripts/publish-prompt.ts pushes this same
+// string up to Langfuse.
 export const SYSTEM_PROMPT = `You are Dad IT Support Agent.
 You are talking directly to Dad. He opened this chat himself to get help with his iPhone.
 
@@ -23,6 +26,18 @@ Rules:
 - If the request is out of scope, say so kindly and redirect to the closest iPhone-help you can give.
 - Do not invent button names or settings paths that were not confirmed by tool results.
 `;
+
+// The client reads the Langfuse project credentials and base URL from the environment.
+const langfuse = new LangfuseClient();
+
+// Fetch the published prompt, but keep the local prompt as a reliable fallback.
+async function getPrompt() {
+  try {
+    return await langfuse.prompt.get(env.langfusePromptName);
+  } catch {
+    return null;
+  }
+}
 
 function toOpenAIMessages(
   messages: ChatMessage[]
@@ -59,6 +74,10 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
   // This function orchestrates one user turn from incoming messages to the final answer.
   const context = getSupportContext();
 
+  // Prefer the currently published Langfuse prompt; use the local constant if fetching fails.
+  const langfusePrompt = await getPrompt();
+  const systemPrompt = langfusePrompt?.prompt ?? SYSTEM_PROMPT;
+
   // Use the supplied user ID when available, otherwise create a stable workshop ID.
   const userId = request.userId ?? `workshop-${context.id}`;
 
@@ -71,12 +90,15 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
       tags: ["langfuse-workshop", "dad-it-support"]
     },
     async () => {
-      // Wrap the selected provider client so each model request becomes a generation.
-      const openai = observeOpenAI(createOpenAIClient());
+      // Observe model calls while keeping the selected OpenAI, Azure, or GPUStack client.
+      const openai = observeOpenAI(
+        createOpenAIClient(),
+        langfusePrompt ? { langfusePrompt } : undefined
+      );
 
       // The transcript is the complete message history sent back to the model on every loop.
       const transcript: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         ...toOpenAIMessages(request.messages)
       ];
 
@@ -150,7 +172,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
   );
 }
 
-// Export the observed wrapper so callers create one agent observation per chat turn.
+// Export the observed wrapper so callers automatically create one agent observation per turn.
 export const runSupportConversation = observe(runSupportConversationInner, {
   name: "dad-it-support-chat-turn",
   asType: "agent"
