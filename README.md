@@ -1,8 +1,12 @@
+<img width="2400" height="600" alt="hero-b (1)" src="https://github.com/user-attachments/assets/a8fa4fbf-fd68-4167-acc4-0f68497602b3" />
+
 # Langfuse Workshop - the AI engineering loop, end to end
 
 This is a step-by-step Langfuse workshop built on a small TypeScript sample application: the **Dad IT Support Agent**. The workshop covers the full AI engineering loop with Langfuse: tracing, prompt management, monitoring, datasets, experiments, and evaluation.
 
 You can complete the workshop on your own from the learner lessons, or use the instructor notes to teach the same material to a group.
+
+> ⚠️ Use **Langfuse Cloud** so you have the latest features this workshop describes. Self-hosted instances may be on an older version and will not match the lessons.
 
 ## For learners
 
@@ -22,11 +26,13 @@ No instructor is required. The learner lessons are complete enough to run the wo
 
 The instructor guide is for people who want to teach Langfuse to others. Use the notes in [`docs/instructor/`](./docs/instructor/) alongside the learner lessons when you are facilitating a live workshop, recording a walkthrough, or adapting the material for a team.
 
+For preparation we included a guide and slides on how to prepare for the workshop [`docs/preparation_and_materials/`](./docs/preparation_and_materials/).
+
 The workshop does not depend on an instructor. The instructor notes add teaching points, demo rhythm, setup reminders, and common pitfalls; they are not required for someone completing the workshop alone.
 
 ## Workshop scope
 
-The sample app is a small web chat where Dad opens the chat to get iPhone help. The agent is named **Specs** and answers with step-by-step instructions. Under the hood, it is a normal OpenAI tool-calling loop with two local tools.
+The sample app is a small web chat where Dad opens the chat to get iPhone help. The agent is named **Specs** and answers with step-by-step instructions. Under the hood, it is a normal OpenAI-compatible tool-calling loop with two local tools. The app can run against OpenAI Platform or Azure OpenAI, selected through `.env`.
 
 ![The AI Engineering Loop](./docs/images/AI-engineering-loop.png)
 
@@ -42,7 +48,7 @@ The sample app is a small web chat where Dad opens the chat to get iPhone help. 
 | 01 | [Base App](./docs/learner/01-base-app.md) | [Instructor notes](./docs/instructor/01-base-app.md) | `checkpoint/01-base-app` | Tour the running app. Nothing to build. |
 | 02 | [Tracing](./docs/learner/02-tracing.md) | [Instructor notes](./docs/instructor/02-tracing.md) | `checkpoint/02-tracing` | Log every agent step: generations, agent root, tool spans. |
 | 03 | [Prompt Management](./docs/learner/03-prompt-management.md) | [Instructor notes](./docs/instructor/03-prompt-management.md) | `checkpoint/03-prompt-management` | Move the system prompt into Langfuse. |
-| 04 | [Monitoring](./docs/learner/04-monitoring.md) | [Instructor notes](./docs/instructor/04-monitoring.md) | `checkpoint/04-monitoring` | Catch out-of-scope requests and user disagreement. |
+| 04 | [Monitoring](./docs/learner/04-monitoring.md) | [Instructor notes](./docs/instructor/04-monitoring.md) | `checkpoint/04-monitoring` | Catch user disagreement and all-caps frustration. |
 | 05 | [Dataset](./docs/learner/05-dataset.md) | [Instructor notes](./docs/instructor/05-dataset.md) | `checkpoint/05-dataset` | Turn product scope into reusable examples. |
 | 06 | [Experiments](./docs/learner/06-experiments.md) | [Instructor notes](./docs/instructor/06-experiments.md) | `checkpoint/06-experiments` | Run the agent against the dataset and score every item. |
 | 07 | [Evaluation](./docs/learner/07-evaluation.md) | [Instructor notes](./docs/instructor/07-evaluation.md) | `checkpoint/07-evaluation` | Change one thing, rerun the dataset, compare runs. |
@@ -58,6 +64,8 @@ The workshop server and npm helper scripts treat the repository `.env` as the No
 
 The workshop is small enough to finish in a sitting, and every module can also be used independently if you only care about one part of the loop.
 
+For a 90-minute live version, focus on `00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`. The other modules stay useful for self-guided follow-up.
+
 ## Repository layout
 
 - [`docs/learner/`](./docs/learner/) contains the self-guided workshop lessons.
@@ -72,3 +80,7 @@ The workshop is small enough to finish in a sitting, and every module can also b
 - Jump to whichever chapter matches what you want to learn.
 - Install the [Langfuse skill](https://github.com/langfuse/skills) (`/langfuse`) to apply the patterns from this workshop to your own codebase.
 - For bigger-picture material on each chapter, use the [Langfuse Academy](https://langfuse.com/academy).
+
+## License
+
+MIT, see [LICENSE](LICENSE).

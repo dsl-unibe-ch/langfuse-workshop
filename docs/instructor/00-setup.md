@@ -9,10 +9,12 @@ Learner guide: [00 Setup](../learner/00-setup.md)
 
 ## Instructor notes
 
+- Recommend **Langfuse Cloud**, not self-hosted. Supporting self-hosted setups would mean maintaining the workshop against too many Langfuse versions. This workshop is also not about learning how to self-host Langfuse; it is about current features in their most up-to-date form.
 - Use `checkpoint/00-setup` as the stable base-app checkout. It should be equivalent to `checkpoint/01-base-app`, not the complete reference app.
 - `main` contains the complete reference implementation, but learners should use the checkpoint so setup and base-app orientation share the same starting state.
-- Make learners confirm both local services: Vite on `127.0.0.1:3333`, and the Express API on `127.0.0.1:8787/api/health` or `127.0.0.1:8787/api/support-context`.
-- The app defaults to Azure OpenAI. Decide whether the room will use the shared Azure deployment or override with OpenAI Platform keys before setup. For Azure, learners need the Azure endpoint, deployment name, API version, and API key.
+- Make learners confirm the UI loads at `127.0.0.1:3333` and that a suggestion-chip chat turn returns a real answer.
+- Tell learners to leave `npm run dev` running: Vite hot-reloads the client, and the API watcher restarts on server or `.env` changes. Stopping and starting between edits is unnecessary.
+- The adapted workshop supports both Azure OpenAI and OpenAI Platform. For company workshops, Azure OpenAI is the default path: `OPENAI_PROVIDER=azure` plus `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, and `AZURE_OPENAI_API_VERSION`.
 - Emphasize the EU Langfuse host value: `LANGFUSE_BASE_URL=https://cloud.langfuse.com`.
 - The Node server and helper scripts load the repository `.env` with override enabled, so stale exported `LANGFUSE_*`, `OPENAI_*`, or `DATASET_NAME` values from another local project should not win. Have learners edit `.env` when they need to switch keys or projects.
 - Do not frontload **Project Settings → LLM Connections** here. Learners configure the default evaluator model in `04-monitoring`, when LLM-as-a-judge evaluators first become relevant.
@@ -22,9 +24,9 @@ Learner guide: [00 Setup](../learner/00-setup.md)
 ## Watch for
 
 - Missing `.env` values. The app may render while model calls fail.
-- Azure OpenAI keys being pasted into `OPENAI_API_KEY`. Azure keys go in `AZURE_OPENAI_API_KEY`; `OPENAI_PROVIDER` must be `azure`.
-- People checking `127.0.0.1:8787/` in dev. The API server runs on that port, but the browser app is served by Vite on `127.0.0.1:3333`, so use an API route for the server check.
+- Node older than `^20.19.0 || >=22.12.0`. Worth a `node -v` check in the room before anyone runs `npm install`, because npm skips Vite's optional native binary silently and the failure only surfaces later inside `npm run dev`. Learners who upgrade afterwards need `npm ci`, not just a restart.
 - Learners editing shell exports instead of `.env`. The workshop intentionally treats `.env` as the Node-side source of truth.
 - People expecting evaluator setup during initial setup. The app can run and trace correctly before the Langfuse-side LLM connection exists.
+- People wanting to use a company or local self-hosted Langfuse instance. Push them to Cloud so the UI and features match the lessons.
 - People expecting traces on `checkpoint/00-setup` or `checkpoint/01-base-app`. Both are intentionally untraced; tracing starts only after the `02-tracing` edits.
 - People staying on `main` for tracing. `main` is already the finished reference implementation.

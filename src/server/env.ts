@@ -12,7 +12,10 @@ export const env = {
   azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT ?? "",
   azureOpenAIDeployment,
   azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION ?? "2024-10-01-preview",
-  chatModel: openaiProvider === "azure" && azureOpenAIDeployment ? azureOpenAIDeployment : process.env.OPENAI_MODEL ?? "gpt-5.5-2026-04-23",
+  chatModel:
+    openaiProvider === "azure" && azureOpenAIDeployment
+      ? azureOpenAIDeployment
+      : (process.env.OPENAI_MODEL ?? "gpt-5.5-2026-04-23"),
   langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY ?? "",
   langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY ?? "",
   langfuseBaseUrl: process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com",

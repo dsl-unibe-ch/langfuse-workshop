@@ -1,7 +1,6 @@
 ---
 title: "Workshop: Setup"
-description: "Set up the workshop app with Azure OpenAI / OpenAI Platform credentials and Langfuse credentials, then verify the local Dad IT
-  Support Agent."
+description: "Set up the workshop app with Azure OpenAI / OpenAI Platform credentials and Langfuse credentials, then verify the local Dad IT Support Agent."
 ---
 
 # 00 Setup
@@ -9,6 +8,14 @@ description: "Set up the workshop app with Azure OpenAI / OpenAI Platform creden
 ## Goal
 
 Have the workshop app running locally with both OpenAI and Langfuse credentials in place. From here you can skim `01-base-app`, then start building in `02-tracing`.
+
+> ⚠️ Use **Langfuse Cloud** so you have the latest features this workshop describes. Self-hosted instances may be on an older version and will not match the lessons.
+
+## Prerequisites
+
+**Node.js `^20.19.0 || >=22.12.0`** — check with `node -v` and upgrade before installing if you are below it (`nvm install 22`, or the equivalent for `asdf`, `fnm`, or `volta`).
+
+An older version fails in a way that is easy to misread. Vite's platform-specific binary is an optional dependency, so npm skips it **without reporting an error**: `npm install` looks like it succeeded, and the problem only appears later when `npm run dev` cannot start Vite. If you upgrade Node after installing, re-run `npm ci` so the skipped binary is fetched.
 
 ## Starting point
 
@@ -61,6 +68,9 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 
 Leave the rest of the defaults as they are.
 
+The workshop app always loads this repository's `.env` file for the server and helper scripts. If you have `LANGFUSE_*`, `OPENAI_*`, or `DATASET_NAME` values exported in your shell from another project, they will not override this file. To change the workshop configuration, edit `.env`.
+
+Keep these values in your local `.env` only. Do not paste real API keys into shared workshop notes, transcripts, screenshots, or chat messages.
 
 ## Step 3 — Install and run
 
@@ -69,7 +79,9 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3333](http://127.0.0.1:3333).
+Leave `npm run dev` running while you edit. Client changes hot-reload via Vite; server code and `.env` changes restart the API automatically. You do not need to stop and start the app for normal workshop edits.
+
+Open [http://127.0.0.1:3333](http://127.0.0.1:3333) to access the Dad IT Support Agent UI.
 
 If you want to verify the server separately, check [http://127.0.0.1:8787/api/health](http://127.0.0.1:8787/api/health) or [http://127.0.0.1:8787/api/support-context](http://127.0.0.1:8787/api/support-context). During `npm run dev`, `127.0.0.1:8787/` is not the main app URL.
 

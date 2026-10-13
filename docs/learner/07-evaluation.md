@@ -13,7 +13,7 @@ git checkout checkpoint/07-evaluation
 
 Your app is traced, monitored, has a hosted dataset, and at least one experiment run with both `keyword_overlap` and `correctness` scores. Now you make a change to the app and rerun the experiment to see whether it helped or hurt.
 
-Look at your first experiment run before making changes. Open the dataset → **Runs** tab and check the averages:
+Look at your first experiment run before making changes. Open the dataset → **Experiments** tab and check the averages:
 
 - `correctness` average — what fraction of items did the judge mark as actually correct?
 - `keyword_overlap` average — what fraction covered the expected steps?
@@ -92,13 +92,13 @@ Either way you end up with a new prompt version, and the next `runSupportConvers
 npm run dataset:run
 ```
 
-You now have two runs under the same dataset, each linked to a different prompt version. The same `keyword_overlap` script evaluator and `correctness` evaluator from step 06 score the new run automatically.
+You now have two runs under the same dataset, each linked to a different prompt version. The same `keyword_overlap` and `correctness` callback evaluators from step 06 score the new run automatically inside `runExperiment`.
 
 ## Step 3 — Compare
 
 In Langfuse:
 
-- Dataset → **Runs** tab → both rows visible with `keyword_overlap` and `correctness` averages.
+- Dataset → **Experiments** tab → both rows visible with `keyword_overlap` and `correctness` averages.
 - **Chart view** → per-run averages side by side.
 - Add the new run as 'Compare with' in the sidebar
 
@@ -114,7 +114,7 @@ Things to look for:
 
 - Two runs appear under the dataset, linked to different prompt versions.
 - Both scores (`keyword_overlap`, `correctness`) have averages you can compare.
-- If a score is missing, check whether `npm run dataset:run` finished successfully; in the main workshop path both scores are returned by the script.
+- The console summary from `npm run dataset:run` already lists both scores for the new run.
 
 ## Wrap-up
 

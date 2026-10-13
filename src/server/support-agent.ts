@@ -1,18 +1,16 @@
-import type {
-  ChatCompletionMessage,
-  ChatCompletionMessageParam
-} from "openai/resources/chat/completions";
+import OpenAI from "openai";
+import { LangfuseClient } from "@langfuse/client";
+import { observeOpenAI } from "@langfuse/openai";
+import { observe, propagateAttributes } from "@langfuse/tracing";
 import type { ChatMessage, ChatRequest, ChatResponse } from "../shared/types";
 import { env } from "./env";
 import { createOpenAIClient } from "./openai-client";
 import { getSupportContext } from "./support-data";
 import { TOOL_DEFINITIONS, executeTool } from "./tools";
-import { LangfuseClient } from "@langfuse/client";
-import { observeOpenAI } from "@langfuse/openai";
-import { observe } from "@langfuse/tracing";
 
-const langfuse = new LangfuseClient();
-
+// Local fallback used when Langfuse isn't reachable or the prompt
+// isn't published yet. scripts/publish-prompt.ts pushes this same
+// string up to Langfuse.
 export const SYSTEM_PROMPT = `You are Dad IT Support Agent.
 You are talking directly to Dad. He opened this chat himself to get help with his iPhone.
 
@@ -29,7 +27,8 @@ Rules:
 - Do not invent button names or settings paths that were not confirmed by tool results.
 `;
 
-// Fetch the managed prompt if it exists; fall back locally if Langfuse is unavailable.
+const langfuse = new LangfuseClient();
+
 async function getPrompt() {
   try {
     return await langfuse.prompt.get(env.langfusePromptName);
@@ -38,25 +37,22 @@ async function getPrompt() {
   }
 }
 
-// Convert the browser chat shape into the message shape expected by the SDK.
 function toOpenAIMessages(
   messages: ChatMessage[]
-): ChatCompletionMessageParam[] {
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
   return messages.map((message) => ({
     role: message.role,
     content: message.content
   }));
 }
 
-// The final assistant answer is plain text; tool-call messages have no answer text.
-function readAssistantText(message: ChatCompletionMessage) {
+function readAssistantText(message: OpenAI.Chat.Completions.ChatCompletionMessage) {
   if (typeof message.content === "string") {
     return message.content.trim();
   }
   return "";
 }
 
-// Tool arguments arrive as a JSON string from the model.
 function parseToolArguments(argumentsText: string) {
   try {
     const parsed = JSON.parse(argumentsText);
@@ -69,87 +65,86 @@ function parseToolArguments(argumentsText: string) {
   }
 }
 
-// Run one complete chat turn for the Dad IT support agent.
-// So index.ts can still import runSupportConversation exactly as before, but Langfuse should now show one parent dad-it-
-// support-chat-turn agent observation with the OpenAI generation nested underneath.
 async function runSupportConversationInner(request: ChatRequest): Promise<ChatResponse> {
   const context = getSupportContext();
   const langfusePrompt = await getPrompt();
-  // Keep the local constant as a fallback so the chat still works before the prompt is published.
   const systemPrompt = langfusePrompt?.prompt ?? SYSTEM_PROMPT;
-  // Keep Azure/OpenAI provider selection in the factory, and pass the prompt so generations get the Prompt badge.
-  const openai = observeOpenAI(
-    createOpenAIClient(),
-    langfusePrompt ? { langfusePrompt } : undefined
+  const userId = request.userId ?? `workshop-${context.id}`;
+
+  return propagateAttributes(
+    {
+      userId,
+      sessionId: request.sessionId,
+      traceName: "dad-it-support-chat-turn",
+      tags: ["langfuse-workshop", "dad-it-support"]
+    },
+    async () => {
+      const openai = observeOpenAI(
+        createOpenAIClient(),
+        langfusePrompt ? { langfusePrompt } : undefined
+      );
+
+      const transcript: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: "system", content: systemPrompt },
+        ...toOpenAIMessages(request.messages)
+      ];
+      const usedTools = new Set<string>();
+      let finalAnswer = "";
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const response = await openai.chat.completions.create({
+          model: env.chatModel,
+          messages: transcript,
+          tools: TOOL_DEFINITIONS,
+          tool_choice: "auto"
+        });
+
+        const message = response.choices[0]?.message;
+        if (!message) {
+          throw new Error("OpenAI returned no assistant message.");
+        }
+        transcript.push(message as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+
+        const toolCalls = message.tool_calls ?? [];
+        if (toolCalls.length === 0) {
+          finalAnswer = readAssistantText(message);
+          break;
+        }
+
+        for (const toolCall of toolCalls) {
+          if (toolCall.type !== "function") continue;
+          usedTools.add(toolCall.function.name);
+          const parsedArguments = parseToolArguments(toolCall.function.arguments);
+          const result =
+            parsedArguments === null
+              ? { ok: false, error: `The tool arguments for ${toolCall.function.name} were not valid JSON.` }
+              : await executeTool(toolCall.function.name, parsedArguments);
+          transcript.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result)
+          });
+        }
+      }
+
+      if (!finalAnswer) {
+        finalAnswer =
+          "I ran out of room before finishing that answer. Please ask the question once more in a slightly shorter way.";
+      }
+
+      return {
+        answer: finalAnswer,
+        usedTools: [...usedTools],
+        traceMeta: {
+          contextId: context.id,
+          contextLabel: context.label,
+          model: env.chatModel
+        }
+      };
+    }
   );
-
-  // Start the transcript with system instructions, followed by Dad's visible chat history.
-  const transcript: ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt },
-    ...toOpenAIMessages(request.messages)
-  ];
-  const usedTools = new Set<string>();
-  let finalAnswer = "";
-
-  // Let the model call tools and continue until it returns a normal assistant answer.
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await openai.chat.completions.create({
-      model: env.chatModel,
-      messages: transcript,
-      tools: TOOL_DEFINITIONS,
-      tool_choice: "auto"
-    });
-
-    const message = response.choices[0]?.message;
-    if (!message) {
-      throw new Error("OpenAI returned no assistant message.");
-    }
-    transcript.push(message as ChatCompletionMessageParam);
-
-    const toolCalls = message.tool_calls ?? [];
-    if (toolCalls.length === 0) {
-      finalAnswer = readAssistantText(message);
-      break;
-    }
-
-    // Execute each requested local tool and append the result for the next model call.
-    for (const toolCall of toolCalls) {
-      if (toolCall.type !== "function") continue;
-      usedTools.add(toolCall.function.name);
-      const parsedArguments = parseToolArguments(toolCall.function.arguments);
-      const result =
-        parsedArguments === null
-          ? { ok: false, error: `The tool arguments for ${toolCall.function.name} were not valid JSON.` }
-          : await executeTool(toolCall.function.name, parsedArguments);
-      transcript.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: JSON.stringify(result)
-      });
-    }
-  }
-
-  // Avoid returning an empty response if the tool-calling loop hits the attempt limit.
-  if (!finalAnswer) {
-    finalAnswer =
-      "I ran out of room before finishing that answer. Please ask the question once more in a slightly shorter way.";
-  }
-
-  // Return the answer plus lightweight metadata used by the client and workshop checks.
-  return {
-    answer: finalAnswer,
-    usedTools: [...usedTools],
-    traceMeta: {
-      contextId: context.id,
-      contextLabel: context.label,
-      model: env.chatModel
-    }
-  };
 }
 
-// observe(...) creates a Langfuse parent span around the whole function call.
-// So everything that happens inside runSupportConversationInner, including observeOpenAI(...) model calls, becomes
-// nested under one parent trace.
 export const runSupportConversation = observe(runSupportConversationInner, {
   name: "dad-it-support-chat-turn",
   asType: "agent"

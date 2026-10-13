@@ -44,7 +44,7 @@ Open `scripts/run-dataset.ts`. The file is annotated with numbered comments (`//
 - For each item, calls the same `runSupportConversation(...)` the web app uses.
 - Uses `dataset.runExperiment(...)` to roll all per-item traces into a single run row.
 - Attaches a `keyword_overlap` score per item by comparing `expectedKeywords` against the agent's answer.
-- Attaches a `correctness` score per item by asking a judge model to compare the query, actual answer, and ideal answer.
+- Attaches a `correctness` score per item by asking a judge model to compare the actual answer and ideal answer.
 
 Each dataset item creates a Langfuse trace. The tracing still looks like the chat traces you saw earlier:
 
@@ -64,7 +64,7 @@ The whole run is one call to `runExperiment`. The shape boils down to:
 ```ts
 await dataset.runExperiment({
   name: "Dad IT Support Agent experiment",
-  runName,           // unique label for this run; shows up in the Runs tab
+  runName,           // unique label for this run; shows up in the Experiments tab
   description: "...",
   metadata: { model: env.chatModel, provider: env.openaiProvider },
   maxConcurrency: 1, // run items one at a time
@@ -80,17 +80,16 @@ await dataset.runExperiment({
       value: keywordOverlap(output as string, (expectedOutput as any).expectedKeywords),
       comment: "..."
     }),
-    async ({ input, output, expectedOutput }) => {
-      const judged = await judgeCorrectness({
-        query: (input as any).messages.at(-1)?.content ?? "",
-        actualAnswer: output as string,
-        idealAnswer: (expectedOutput as any).idealAnswer
-      });
+    async ({ output, expectedOutput }) => {
+      const judged = await scoreCorrectness(
+        output as string,
+        (expectedOutput as any).idealAnswer
+      );
 
       return {
         name: "correctness",
         value: judged.score,
-        comment: judged.reason
+        comment: judged.reasoning
       };
     }
   ]
@@ -100,8 +99,8 @@ await dataset.runExperiment({
 Three things to understand:
 
 - **`task`** is *your application logic* — we call straight into `runSupportConversation(...)`, which means every trace this script produces looks identical to a production trace.
-- **`evaluators`** is a list. Each evaluator runs after `task` returns and attaches a score to the item trace. Here we use one deterministic evaluator and one LLM-as-a-judge evaluator.
-- **`runName`** groups every per-item trace into one row in the Langfuse Runs view. Pick a name that changes per run (we include the timestamp) so two runs don't collide.
+- **`evaluators`** is a list of callbacks. Each evaluator runs after `task` returns and attaches a score to the item trace. Here we use one deterministic evaluator and one LLM-as-a-judge evaluator.
+- **`runName`** groups every per-item trace into one row in the Langfuse Experiments view. Pick a name that changes per run (we include the timestamp) so two runs don't collide.
 
 ## Step 2 — Review the deterministic `keyword_overlap` evaluator
 
@@ -119,21 +118,20 @@ This is also a good default pattern for teams that want experiment logic to stay
 
 ## Step 3 — Review the programmatic `correctness` evaluator
 
-Inside `scripts/run-dataset.ts`, `judgeCorrectness(...)` implements the LLM-as-a-judge path in code. It compares three things:
+Inside `scripts/run-dataset.ts`, `scoreCorrectness(...)` implements the LLM-as-a-judge path in code. It compares two things:
 
-- the user's latest question from the dataset input
 - the agent's actual answer from `task`
 - the ideal answer from `expectedOutput.idealAnswer`
 
 The helper uses `createOpenAIClient()`, the same Azure/OpenAI provider factory as the app. That keeps the experiment runner compatible with workshop environments that use Azure OpenAI instead of an OpenAI Platform key. The judge client is also wrapped with `observeOpenAI(...)`, so the evaluator's own model call is traced and can be inspected in Langfuse.
 
-The judge is asked to return JSON with a numeric `score` and a short `reason`. The evaluator then turns that into a Langfuse score named `correctness`:
+The judge is asked to return JSON with a boolean `score` and a short `reasoning` comment. The evaluator then maps that to a numeric Langfuse score named `correctness`:
 
 ```ts
 return {
   name: "correctness",
-  value: judged.score,
-  comment: judged.reason
+  value: score,
+  comment: reasoning
 };
 ```
 
