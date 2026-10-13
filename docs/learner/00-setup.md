@@ -29,6 +29,33 @@ git checkout checkpoint/00-setup
 
 This checkpoint intentionally contains the same untraced base app as `checkpoint/01-base-app`. Use it to confirm that your API keys, dependencies, and local ports work before switching to the build chapters. The Langfuse keys are configured now, but traces start only after you add instrumentation in `02-tracing`.
 
+## How checkpoints work
+
+Each checkpoint is the **starting point** for a lesson. If you finish a lesson manually, your code should roughly match the next checkpoint. If you get stuck or want to skip ahead, check out the next checkpoint and continue from there.
+
+For the 90-minute live workshop, we focus on:
+
+- `checkpoint/00-setup`
+- `checkpoint/01-base-app`
+- `checkpoint/02-tracing`
+- `checkpoint/05-dataset`
+- `checkpoint/06-experiments`
+- `checkpoint/07-evaluation`
+
+The complete self-guided workshop also includes:
+
+- `checkpoint/03-prompt-management`
+- `checkpoint/04-monitoring`
+- `checkpoint/08-wrap-up`
+
+To move to a checkpoint, run:
+
+```bash
+git checkout checkpoint/02-tracing
+```
+
+Replace `02-tracing` with the lesson you want to start.
+
 ## Step 1 — Get the API keys
 
 1. **Model provider** — use either an OpenAI Platform key or Azure OpenAI deployment.

@@ -58,13 +58,19 @@ The sample app is a small web chat where Dad opens the chat to get iPhone help. 
 
 `main` is the complete reference implementation. For hands-on work, check out the checkpoint named in the lesson you are starting, make the missing changes, and verify the result before moving on.
 
+Each checkpoint is the **starting point** for that lesson. If you finish a lesson manually, your code should roughly match the next checkpoint. If you get stuck or want to skip ahead, check out the next checkpoint and continue from there:
+
+```bash
+git checkout checkpoint/02-tracing
+```
+
 `checkpoint/00-setup` and `checkpoint/01-base-app` intentionally contain the same untraced base app. Setup uses that state to validate keys, dependencies, and ports; Base App uses it for orientation. Tracing starts in `02-tracing`.
 
 The workshop server and npm helper scripts treat the repository `.env` as the Node-side source of truth. Local shell exports from other projects do not override `.env`, so change workshop keys, Langfuse host, prompt labels, and dataset names in that file.
 
 The workshop is small enough to finish in a sitting, and every module can also be used independently if you only care about one part of the loop.
 
-For a 90-minute live version, focus on `00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`. The other modules stay useful for self-guided follow-up.
+For a 90-minute live version, focus on `00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`. The complete self-guided path also includes `03 Prompt Management`, `04 Monitoring`, and `08 Wrap-up`.
 
 ## Repository layout
 
