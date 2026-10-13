@@ -1,4 +1,6 @@
 import "./load-env";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +9,11 @@ import type { ChatRequest } from "../shared/types";
 import { runSupportConversation } from "./support-agent";
 import { env, isLangfuseConfigured } from "./env";
 import { DEFAULT_SUPPORT_CONTEXT } from "./support-data";
+
+// Start OpenTelemetry before requests arrive so Langfuse can receive every span.
+const langfuseSpanProcessor = new LangfuseSpanProcessor();
+const sdk = new NodeSDK({ spanProcessors: [langfuseSpanProcessor] });
+sdk.start();
 
 // Validate the browser payload before passing it to the agent.
 // Zod rejects malformed requests before they can reach the model or tools.
@@ -73,9 +80,16 @@ const server = app.listen(env.port, "127.0.0.1", () => {
   console.log(`Dad IT Support Agent server listening on http://127.0.0.1:${env.port}`);
 });
 
-// Stop accepting requests when the local process exits.
+// Flush pending spans before Node exits so the final trace is not lost.
 async function shutdown() {
-  server.close();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+  await langfuseSpanProcessor.forceFlush();
+  await sdk.shutdown();
 }
 
 process.on("SIGINT", () => void shutdown());

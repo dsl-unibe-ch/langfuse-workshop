@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { observe } from "@langfuse/tracing";
 import { getSupportContext, searchGuides } from "./support-data";
 
 type ToolResult = Record<string, unknown>;
@@ -38,40 +39,58 @@ export const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   }
 ];
 
-// Run the local TypeScript function selected by the model.
+// Record the context lookup input/output as a Langfuse tool observation.
+const getSupportContextTool = observe(
+  async () => {
+    const context = getSupportContext();
+
+    // Return only the profile fields that help the model answer the current question.
+    return {
+      ok: true,
+      context: {
+        id: context.id,
+        label: context.label,
+        devices: context.devices,
+        deviceSummary: context.deviceSummary,
+        responseStyle: context.responseStyle,
+        scopeHighlights: context.scopeHighlights,
+        notableApps: context.notableApps
+      }
+    };
+  },
+  { name: "get_support_context", asType: "tool" }
+);
+
+// Record the help-library search input/output as a Langfuse tool observation.
+const searchHelpLibraryTool = observe(
+  async (input: { question: string }) => {
+    const guides = searchGuides(input.question);
+
+    // Convert internal guide objects into a compact, model-facing result.
+    return {
+      ok: true,
+      results: guides.map((guide) => ({
+        id: guide.id,
+        title: guide.title,
+        summary: guide.summary,
+        steps: guide.steps,
+        caution: guide.caution ?? null
+      }))
+    };
+  },
+  { name: "search_help_library", asType: "tool" }
+);
+
+// Route the model's requested tool name to the matching observed implementation.
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<ToolResult> {
   // The model supplies a tool name; this switch decides which local function actually runs.
   switch (name) {
     case "get_support_context": {
-      const context = getSupportContext();
-
-      // Return only the profile fields that help the model answer the current question.
-      return {
-        ok: true,
-        context: {
-          id: context.id,
-          label: context.label,
-          devices: context.devices,
-          deviceSummary: context.deviceSummary,
-          responseStyle: context.responseStyle,
-          scopeHighlights: context.scopeHighlights,
-          notableApps: context.notableApps
-        }
-      };
+      return getSupportContextTool();
     }
     case "search_help_library": {
-      // Normalize model input, search the local guides, and return only useful fields.
-      const guides = searchGuides(String(input.question ?? ""));
-      return {
-        ok: true,
-        results: guides.map((guide) => ({
-          id: guide.id,
-          title: guide.title,
-          summary: guide.summary,
-          steps: guide.steps,
-          caution: guide.caution ?? null
-        }))
-      };
+      // Normalize unknown model input to the string expected by the search helper.
+      return searchHelpLibraryTool({ question: String(input.question ?? "") });
     }
     default:
       // Never execute arbitrary names supplied by the model.
