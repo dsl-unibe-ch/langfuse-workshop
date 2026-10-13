@@ -11,7 +11,8 @@ Learner guide: [01 Base App](../learner/01-base-app.md)
 
 - This is a quick orientation chapter. There is intentionally nothing to build.
 - Point at the three boundaries learners will instrument later: Express route, agent loop, local tools.
-- Stress that the base checkpoint uses the official OpenAI SDK and local tool functions only.
+- Stress that the base app uses an OpenAI-compatible SDK client and local tool functions only. In this adapted workshop, the same code path can call Azure OpenAI or OpenAI Platform depending on `.env`.
+- Make the model/tool boundary concrete: the model chooses a tool call, but `src/server/tools.ts` is where local TypeScript code actually executes it.
 
 ## Watch for
 

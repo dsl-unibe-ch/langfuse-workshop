@@ -1,6 +1,6 @@
 ---
 title: "Workshop: Tracing an LLM Agent with Langfuse"
-description: "Instrument the support agent so one chat turn becomes a nested Langfuse trace with OpenAI generations, agent spans, and tool calls."
+description: "Instrument the support agent so one chat turn becomes a Langfuse trace with OpenAI generations, agent observations, and tool calls."
 ---
 
 # 02 Tracing
@@ -15,59 +15,93 @@ This is the blank slate for the tracing step — same code as `checkpoint/01-bas
 
 ## Why we trace
 
-Tracing logs every step your agent takes — every model call, every tool invocation, the inputs that went in and the outputs that came back — in the order they happened. It turns the agent from a black box into something you can open up and inspect after the fact, so when an answer is wrong you can point at the exact step where it went wrong instead of guessing.
+LLM apps are harder to debug than normal deterministic code because the model can make different decisions depending on the input, prompt, tools, and context. If we only look at the final answer, we cannot easily see why the agent behaved the way it did.
+
+A Langfuse trace gives us a step-by-step record of one chat turn. In this workshop, one trace should show:
+
+- the user's question,
+- each OpenAI/Azure OpenAI model call,
+- each local tool call,
+- the data returned by those tools,
+- and the final answer sent back to the user.
+
+Langfuse calls the individual steps inside a trace **observations**. For example, a model call is a `generation`, and a tool execution is a `tool` observation. This makes the trace readable as a timeline of what happened during the agent run.
 
 If you want the bigger-picture motivation, see the [Langfuse Academy lesson on tracing](https://langfuse.com/academy/tracing). If you want the technical details (SDK options, OpenTelemetry internals, span attributes), the [tracing docs](https://langfuse.com/docs/tracing) cover that.
 
 ## Goal
 
-When Dad asks "How do I turn Bluetooth on?", the agent doesn't just hit OpenAI once. Behind the scenes it asks OpenAI what to do, calls `get_support_context` to fetch Dad's iPhone setup, asks OpenAI again, calls `search_help_library` for Bluetooth steps, then asks OpenAI one more time to produce the numbered answer. None of that is visible today.
+When Dad asks "How do I turn Bluetooth on?", the agent doesn't just hit OpenAI once. Behind the scenes it asks OpenAI what to do, calls `get_support_context` to fetch Dad's iPhone setup, asks OpenAI again, calls `search_help_library` for Bluetooth steps, then asks OpenAI one more time to produce the numbered answer. 
 
-The goal of this chapter is to make every one of those steps visible in Langfuse — one chat turn becomes one nested trace with the agent run, the OpenAI generations, and the two tool calls all logged in order.
+The goal of this chapter is to make every one of those steps visible in Langfuse — one chat turn becomes one trace, with the agent run, the OpenAI generations, and the two tool calls all logged in order.
 
 ![Spec's step by step process](../images/tracing/process_illustration.png)
 
 We will build up the trace in three steps that mirror the agent's structure:
 
-1. **First trace** — log the OpenAI generations themselves.
-2. **Nested traces** — group the generations under one agent run per turn.
-3. **Recording tool calls** — make each tool invocation its own observation.
+1. **Trace the model call** — record each OpenAI/Azure OpenAI request and response in Langfuse. This shows what messages were sent to the model, which model was used, and what the model returned.
+2. **Wrap the full chat turn** — group the whole user message -> agent answer flow into one Langfuse trace. Inside that trace, Langfuse shows the model call and, later, the tool calls as child observations.
+3. **Trace the tool calls** — record the local TypeScript functions the model asked the app to run, including their inputs and returned data.
 
 
-## Step 1 — First trace
+## Step 1 — Trace the model call
 
-We want observability on the OpenAI calls themselves to see what the inputs and outputs are, and how much cost, tokens and time is spent. Two changes are enough.
+We want observability on the OpenAI/Azure OpenAI calls themselves: what messages were sent, what the model returned, which model was used, and how much time and token usage the call took.
+
+There are two parts to this step:
+
+- `index.ts` starts the tracing pipeline for the backend server.
+- `support-agent.ts` wraps the OpenAI-compatible client so model calls are recorded.
 
 ### `src/server/index.ts`
 
-Start the Langfuse span processor near the top of the file:
+First, start the tracing pipeline for the backend server.
+
+Add these imports near the top of the file, after the existing imports:
 
 ```ts
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
-
-new NodeSDK({ spanProcessors: [new LangfuseSpanProcessor()] }).start();
 ```
 
-The processor reads `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` from the Node process environment. In this workshop, the server loads the repository `.env` before the Langfuse SDK starts, so edit `.env` instead of relying on exported shell values.
-
-Side note: if the last trace sometimes shows up late when you stop or restart `npm run dev`, come back to `index.ts` and turn the one-liner above into named `langfuseSpanProcessor` and `sdk` variables so `shutdown()` can flush them:
+Then create and start the SDK near the top level of the file, before the Express routes are defined:
 
 ```ts
 const langfuseSpanProcessor = new LangfuseSpanProcessor();
 const sdk = new NodeSDK({ spanProcessors: [langfuseSpanProcessor] });
 sdk.start();
+```
 
+This connects the backend process to Langfuse. The `NodeSDK` starts OpenTelemetry tracing for this Node server, and the `LangfuseSpanProcessor` sends the recorded spans to your Langfuse project.
+
+Without this setup, the app can still call the model, but Langfuse has nowhere to receive the trace data from this process.
+
+The processor reads `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` from the Node process environment. In this workshop, the server loads the repository `.env` before the Langfuse SDK starts, so edit `.env` instead of relying on exported shell values.
+
+Also update the shutdown function so pending traces are flushed before the server exits:
+
+```ts
 async function shutdown() {
-  server.close();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
   await langfuseSpanProcessor.forceFlush();
   await sdk.shutdown();
 }
 ```
 
-You do not need this to understand the tracing model, but it avoids confusing "where did my last trace go?" moments in local dev.
+This matters in local development because traces are sent in the background. If you stop the dev server immediately after a chat turn, flushing makes sure the last trace is sent to Langfuse before Node exits.
 
 ### `src/server/support-agent.ts`
+
+Now that the server knows how to send traces to Langfuse, we need to create something useful to trace.
+
+`support-agent.ts` is the file that contains the actual agent logic. It builds the system prompt, sends messages to the OpenAI-compatible client, reads any tool calls requested by the model, executes those tools, and finally returns the assistant answer to the Express route in `index.ts`.
+
+For this first tracing step, we only instrument the model call. That means every time the agent calls OpenAI/Azure OpenAI, Langfuse will record the request, response, model name, token usage, and latency.
 
 Add the import:
 
@@ -87,7 +121,15 @@ and change it to:
 const openai = observeOpenAI(createOpenAIClient());
 ```
 
-That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps the returned client at the call site. `openai.chat.completions.create(...)` below it now emits a trace for every call.
+That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps whichever client it returns. This is why the same code still works whether your `.env` points to Azure OpenAI or the OpenAI Platform.
+
+The important line is still the normal SDK call below it:
+
+```ts
+openai.chat.completions.create(...)
+```
+
+Because `openai` is now the observed client, that SDK call emits a Langfuse generation every time it runs.
 
 At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the OpenAI calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
 
@@ -95,9 +137,19 @@ At this point you are tracing only the model provider call. That is useful becau
 
 ![Langfuse Traces view after Step 1 — each chat turn appears as standalone openai-chat-completion generations.](../images/tracing/02-tracing-step-1.png)
 
-## Step 2 — Nested traces
+## Step 2 — Wrap the full chat turn
 
-To put the generations into context we group them under one agent run per turn. Three edits in `src/server/support-agent.ts` — no function body changes.
+After Step 1, Langfuse can see the individual OpenAI/Azure OpenAI calls. But each model call still looks like a separate trace. 
+In Step 2, we wrap the whole `runSupportConversation(...)` function. This function is the main entry point for one chat turn: it receives the user's chat request, runs the agent logic, and returns the assistant response.
+
+By wrapping this function with `observe(...)`, Langfuse gets one parent observation for the whole chat turn. The model calls from Step 1 are then grouped inside that same trace. The trace becomes easier to read:
+
+- the parent observation is the full support-agent turn,
+- the child observations are the model calls made during that turn.
+
+The important idea is: we keep the agent logic unchanged, but export a Langfuse-wrapped version of it. The rest of the app still calls `runSupportConversation(...)` as before, but Langfuse can now record the full function call.
+
+Three edits in `src/server/support-agent.ts` — no function body changes.
 
 **1. Add the import:**
 
@@ -105,19 +157,26 @@ To put the generations into context we group them under one agent run per turn. 
 import { observe } from "@langfuse/tracing";
 ```
 
-**2. Demote the existing function.** Find:
+**2. Keep the existing implementation, but stop exporting it directly.**
+
+Right now, `runSupportConversation(...)` is the function that contains the agent logic, and it is exported directly:
 
 ```ts
 export async function runSupportConversation(request: ChatRequest): Promise<ChatResponse> {
 ```
 
-Drop the `export` and rename it:
+We now split this into two functions:
+
+- `runSupportConversationInner(...)` contains the existing agent logic,
+- `runSupportConversation` becomes the exported Langfuse-wrapped version.
+
+To do that, remove `export` and rename the function:
 
 ```ts
 async function runSupportConversationInner(request: ChatRequest): Promise<ChatResponse> {
 ```
 
-The body stays exactly as it is.
+The function body stays exactly as it is. We are not changing the agent behavior. We only rename the function so we can wrap it before exporting it again.
 
 
 **3. Add the wrapped export at the bottom of the file:**
@@ -129,9 +188,17 @@ export const runSupportConversation = observe(runSupportConversationInner, {
 });
 ```
 
-`index.ts` still imports `runSupportConversation` the same way. `observe(...)` auto-captures the function argument as the trace input and the return value as the trace output.
+`index.ts` still imports `runSupportConversation` the same way, so the rest of the app does not need to change.
 
-The reason for the `Inner` rename is to separate the implementation from the exported API. `runSupportConversationInner(...)` still contains the real agent logic, but it is no longer exported directly. The exported `runSupportConversation` is now the Langfuse-wrapped version. That means the rest of the app keeps calling the same function name, while Langfuse gets a parent `agent` observation around the whole turn.
+When `index.ts` calls `runSupportConversation(request)`, it now calls the wrapped function. Langfuse then:
+
+- records the `request` as the observation input,
+- executes `runSupportConversationInner(request)`,
+- records the returned `ChatResponse` as the observation output,
+- records how long the function took,
+- keeps the model/tool calls connected to the same trace.
+
+This also avoids a TypeScript duplicate export problem. We cannot export both the original function and the wrapped function with the same name. There should be exactly one exported `runSupportConversation`, and it should be the Langfuse-wrapped one.
 
 The call stack now looks like this:
 
