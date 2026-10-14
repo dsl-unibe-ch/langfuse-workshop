@@ -27,6 +27,7 @@ Rules:
 - Do not invent button names or settings paths that were not confirmed by tool results.
 `;
 
+// The client reads the Langfuse project credentials and base URL from the environment.
 const langfuse = new LangfuseClient();
 
 // Fetch the published prompt, but keep the local prompt as a reliable fallback.
@@ -70,9 +71,14 @@ function parseToolArguments(argumentsText: string) {
 }
 
 async function runSupportConversationInner(request: ChatRequest): Promise<ChatResponse> {
+  // This function orchestrates one user turn from incoming messages to the final answer.
   const context = getSupportContext();
+
+  // Prefer the currently published Langfuse prompt; use the local constant if fetching fails.
   const langfusePrompt = await getPrompt();
   const systemPrompt = langfusePrompt?.prompt ?? SYSTEM_PROMPT;
+
+  // Use the supplied user ID when available, otherwise create a stable workshop ID.
   const userId = request.userId ?? `workshop-${context.id}`;
 
   // Attach user/session metadata to every observation created during this turn.
@@ -90,15 +96,19 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
         langfusePrompt ? { langfusePrompt } : undefined
       );
 
+      // The transcript is the complete message history sent back to the model on every loop.
       const transcript: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: "system", content: systemPrompt },
         ...toOpenAIMessages(request.messages)
       ];
+
+      // Track tool names for the API response and hold the eventual model answer.
       const usedTools = new Set<string>();
       let finalAnswer = "";
 
       // Repeat until the model returns a final answer instead of another tool call.
       for (let attempt = 0; attempt < 6; attempt += 1) {
+        // Give the model the conversation plus the schemas of tools it may request.
         const response = await openai.chat.completions.create({
           model: env.chatModel,
           messages: transcript,
@@ -110,9 +120,13 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
         if (!message) {
           throw new Error("OpenAI returned no assistant message.");
         }
+
+        // Keep the assistant message because later tool results must follow it in the transcript.
         transcript.push(message as OpenAI.Chat.Completions.ChatCompletionMessageParam);
 
         const toolCalls = message.tool_calls ?? [];
+
+        // No tool request means the assistant message is the final user-facing answer.
         if (toolCalls.length === 0) {
           finalAnswer = readAssistantText(message);
           break;
@@ -129,17 +143,20 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
               : await executeTool(toolCall.function.name, parsedArguments);
           transcript.push({
             role: "tool",
+            // This ID links the result to the exact tool call that requested it.
             tool_call_id: toolCall.id,
             content: JSON.stringify(result)
           });
         }
       }
 
+      // Protect against an endless tool loop by returning a helpful fallback after six attempts.
       if (!finalAnswer) {
         finalAnswer =
           "I ran out of room before finishing that answer. Please ask the question once more in a slightly shorter way.";
       }
 
+      // Return the answer, tool summary, and small debugging payload expected by the API route.
       return {
         answer: finalAnswer,
         usedTools: [...usedTools],
