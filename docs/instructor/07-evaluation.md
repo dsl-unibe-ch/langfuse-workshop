@@ -13,6 +13,8 @@ Learner guide: [07 Evaluate a Change](../learner/07-evaluation.md)
 - Keep the iteration deliberately small: one prompt rule, one rerun, one comparison.
 - Emphasize regressions. The most useful comparison is often the item that got worse.
 - Remind learners that both experiment scores come from `runExperiment` callbacks in `scripts/run-dataset.ts`, so a missing score usually means the script hit an OpenAI/Langfuse error — check the terminal output first.
+- Use the Ragas section to show that prompt iteration is only one evaluation level. RAG systems can separately evaluate retrieval quality, context relevance, answer grounding, and final-answer quality.
+- Keep the division of responsibility clear: Ragas computes metrics; Langfuse stores the resulting scores with traces and experiment runs so they can be compared and monitored.
 
 ## Demo rhythm
 
