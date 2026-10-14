@@ -3,6 +3,7 @@ import { LangfuseClient } from "@langfuse/client";
 import { env } from "../src/server/env";
 import { SYSTEM_PROMPT } from "../src/server/support-agent";
 
+// Keep workshop prompt variants in code so changes can be reviewed and republished.
 const PROMPT_VARIANTS = {
   default: SYSTEM_PROMPT,
   gentler: `${SYSTEM_PROMPT.trim()}
@@ -21,6 +22,7 @@ function resolvePromptVariant(variantName: string): {
   name: WorkshopPromptVariant;
   prompt: string;
 } {
+  // Convert WORKSHOP_PROMPT_VARIANT into one known prompt definition.
   const normalizedVariantName = variantName.trim() || "default";
 
   if (normalizedVariantName in PROMPT_VARIANTS) {
@@ -35,6 +37,7 @@ function resolvePromptVariant(variantName: string): {
 }
 
 async function main() {
+  // Publish the selected prompt text under the configured Langfuse name and label.
   const variant = resolvePromptVariant(env.workshopPromptVariant);
 
   if (!env.langfusePublicKey || !env.langfuseSecretKey) {

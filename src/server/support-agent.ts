@@ -29,6 +29,7 @@ Rules:
 
 const langfuse = new LangfuseClient();
 
+// Fetch the published prompt, but keep the local prompt as a reliable fallback.
 async function getPrompt() {
   try {
     return await langfuse.prompt.get(env.langfusePromptName);
@@ -40,6 +41,7 @@ async function getPrompt() {
 function toOpenAIMessages(
   messages: ChatMessage[]
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  // Remove UI-only fields before sending the conversation to the model.
   return messages.map((message) => ({
     role: message.role,
     content: message.content
@@ -47,6 +49,7 @@ function toOpenAIMessages(
 }
 
 function readAssistantText(message: OpenAI.Chat.Completions.ChatCompletionMessage) {
+  // This workshop expects the final assistant response to be plain text.
   if (typeof message.content === "string") {
     return message.content.trim();
   }
@@ -54,6 +57,7 @@ function readAssistantText(message: OpenAI.Chat.Completions.ChatCompletionMessag
 }
 
 function parseToolArguments(argumentsText: string) {
+  // Tool arguments arrive as JSON text and must be validated before execution.
   try {
     const parsed = JSON.parse(argumentsText);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -71,6 +75,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
   const systemPrompt = langfusePrompt?.prompt ?? SYSTEM_PROMPT;
   const userId = request.userId ?? `workshop-${context.id}`;
 
+  // Attach user/session metadata to every observation created during this turn.
   return propagateAttributes(
     {
       userId,
@@ -79,6 +84,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
       tags: ["langfuse-workshop", "dad-it-support"]
     },
     async () => {
+      // Observe model calls while keeping the selected OpenAI, Azure, or GPUStack client.
       const openai = observeOpenAI(
         createOpenAIClient(),
         langfusePrompt ? { langfusePrompt } : undefined
@@ -91,6 +97,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
       const usedTools = new Set<string>();
       let finalAnswer = "";
 
+      // Repeat until the model returns a final answer instead of another tool call.
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const response = await openai.chat.completions.create({
           model: env.chatModel,
@@ -111,6 +118,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
           break;
         }
 
+        // Execute each requested local tool and append its result to the transcript.
         for (const toolCall of toolCalls) {
           if (toolCall.type !== "function") continue;
           usedTools.add(toolCall.function.name);
@@ -145,6 +153,7 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
   );
 }
 
+// Export the observed wrapper so callers automatically create one agent observation per turn.
 export const runSupportConversation = observe(runSupportConversationInner, {
   name: "dad-it-support-chat-turn",
   asType: "agent"

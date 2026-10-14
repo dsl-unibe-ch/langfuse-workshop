@@ -4,6 +4,7 @@ import seedDataset from "../data/seed-dataset.json";
 import { env } from "../src/server/env";
 
 async function main() {
+  // Fail early instead of attempting dataset writes without Langfuse credentials.
   if (!env.langfusePublicKey || !env.langfuseSecretKey) {
     throw new Error("Langfuse credentials are required to seed a dataset.");
   }
@@ -14,6 +15,7 @@ async function main() {
     baseUrl: env.langfuseBaseUrl
   });
 
+  // Create the dataset once; an existing dataset is safe to reuse.
   try {
     await langfuse.api.datasets.create({
       name: env.datasetName,
@@ -29,6 +31,7 @@ async function main() {
     }
   }
 
+  // Upload each local JSON example as one Langfuse dataset item.
   for (const item of seedDataset) {
     await langfuse.api.datasetItems.create({
       id: item.id,
@@ -39,6 +42,7 @@ async function main() {
     });
   }
 
+  // Wait for pending API operations before the script exits.
   await langfuse.flush();
   console.log(`Seeded dataset "${env.datasetName}" with ${seedDataset.length} items.`);
 }

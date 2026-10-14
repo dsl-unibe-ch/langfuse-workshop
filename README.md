@@ -41,6 +41,7 @@ The sample app is a small web chat where Dad opens the chat to get iPhone help. 
 `main` contains the complete reference app and current workshop docs. Use it to inspect the finished implementation or compare your work against the end state. The exercises themselves start from checkpoint tags.
 
 ## Modules
+The complete workshop consists of the following modules:
 
 | Step | Learner lesson | Instructor notes | Checkpoint | What you will learn |
 | --- | --- | --- | --- | --- |
@@ -53,6 +54,11 @@ The sample app is a small web chat where Dad opens the chat to get iPhone help. 
 | 06 | [Experiments](./docs/learner/06-experiments.md) | [Instructor notes](./docs/instructor/06-experiments.md) | `checkpoint/06-experiments` | Run the agent against the dataset and score every item. |
 | 07 | [Evaluation](./docs/learner/07-evaluation.md) | [Instructor notes](./docs/instructor/07-evaluation.md) | `checkpoint/07-evaluation` | Change one thing, rerun the dataset, compare runs. |
 | 08 | [Wrap-up](./docs/learner/08-wrap-up.md) | [Instructor notes](./docs/instructor/08-wrap-up.md) | `checkpoint/08-wrap-up` | Apply the loop to your own app. |
+
+In our 90-minute workshop today we will only cover:
+
+`00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`.
+
 
 ## How to work through it
 
@@ -68,9 +74,6 @@ git checkout checkpoint/02-tracing
 
 The workshop server and npm helper scripts treat the repository `.env` as the Node-side source of truth. Local shell exports from other projects do not override `.env`, so change workshop keys, Langfuse host, prompt labels, and dataset names in that file.
 
-The workshop is small enough to finish in a sitting, and every module can also be used independently if you only care about one part of the loop.
-
-For a 90-minute live version, focus on `00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`. The complete self-guided path also includes `03 Prompt Management`, `04 Monitoring`, and `08 Wrap-up`.
 
 ## Repository layout
 

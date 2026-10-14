@@ -1,5 +1,6 @@
 import "./load-env";
 
+// Select which OpenAI-compatible backend the app should call.
 const openaiProvider =
   process.env.OPENAI_PROVIDER === "openai" || process.env.OPENAI_PROVIDER === "gpustack"
     ? process.env.OPENAI_PROVIDER
@@ -7,6 +8,7 @@ const openaiProvider =
 const azureOpenAIDeployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "";
 const gpuStackModel = process.env.GPUSTACK_MODEL ?? "gpt-oss-120b";
 
+// Read environment variables once so the rest of the app uses one typed configuration object.
 export const env = {
   port: Number(process.env.PORT ?? 8787),
   openaiProvider,
@@ -19,6 +21,7 @@ export const env = {
   gpuStackApiKey: process.env.GPUSTACK_API_KEY ?? "",
   gpuStackBaseUrl: process.env.GPUSTACK_BASE_URL ?? "https://gpustack.unibe.ch/v1",
   gpuStackModel,
+  // Azure uses its deployment name; GPUStack and OpenAI use their configured model names.
   chatModel:
     openaiProvider === "azure" && azureOpenAIDeployment
       ? azureOpenAIDeployment
@@ -35,5 +38,6 @@ export const env = {
 };
 
 export function isLangfuseConfigured() {
+  // Both project keys are required before traces can be sent to Langfuse.
   return Boolean(env.langfusePublicKey && env.langfuseSecretKey);
 }
