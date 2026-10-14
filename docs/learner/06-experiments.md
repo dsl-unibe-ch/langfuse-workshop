@@ -203,7 +203,7 @@ The two scoring approaches give you two angles on the same run: **keyword match*
 
 If your team prefers more evaluator logic in the Langfuse UI, the correctness judge can be managed there instead, and the deterministic check could also be migrated into a code evaluator later. The [Code evaluators docs](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators) cover that path, and the [Experiments via SDK docs](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk) show how the code-side setup fits together.
 
-The [**Langfuse skill**](https://github.com/langfuse/skills) (`/langfuse`) knows the recommended evaluator shapes and setup patterns — this walkthrough exists so you see what the skill is doing under the hood. Learn more about experiments in the [Langfuse Academy lesson](https://langfuse.com/academy/experiments).
+Learn more about experiments in the [Langfuse Academy lesson](https://langfuse.com/academy/experiments).
 
 ## End state
 

@@ -87,19 +87,13 @@ Do this in order:
    langfuse api __schema
    ```
 
-3. **Install the [Langfuse skill](https://github.com/langfuse/skills)** (`/langfuse`) — it packages the recommended tracing, prompt management, monitoring, and evaluator patterns from this workshop and applies them to your codebase without you hand-rolling each piece:
+3. **Pick the smallest LLM-using surface** you have and wire `observe(...)` + `observeOpenAI(...)` first. Get one trace before you do anything else.
 
-   ```bash
-   npx skills add langfuse/skills --skill "langfuse"
-   ```
+4. **Add user/session information** only once you have at least two users or two sessions of traffic — there's no point until then.
 
-4. **Pick the smallest LLM-using surface** you have and wire `observe(...)` + `observeOpenAI(...)` first. Get one trace before you do anything else.
+5. **Build your first dataset *from real traces, discussions with experts, or past examples*** rather than from imagination. Production behavior will tell you over time what your dataset needs to cover.
 
-5. **Add user/session information** only once you have at least two users or two sessions of traffic — there's no point until then.
-
-6. **Build your first dataset *from real traces, discussions with experts, or past examples*** rather than from imagination. Production behavior will tell you over time what your dataset needs to cover.
-
-7. **Run one experiment, change one thing, rerun.** Then repeat.
+6. **Run one experiment, change one thing, rerun.** Then repeat.
 
 For the bigger-picture material on each step, the [Langfuse Academy](https://langfuse.com/academy) has dedicated lessons:
 

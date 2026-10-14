@@ -94,7 +94,6 @@ The workshop server and npm helper scripts treat the repository `.env` as the No
 
 - Walk the modules in order starting from [`docs/learner/00-setup.md`](./docs/learner/00-setup.md).
 - Jump to whichever chapter matches what you want to learn.
-- Install the [Langfuse skill](https://github.com/langfuse/skills) (`/langfuse`) to apply the patterns from this workshop to your own codebase.
 - For bigger-picture material on each chapter, use the [Langfuse Academy](https://langfuse.com/academy).
 
 ## License

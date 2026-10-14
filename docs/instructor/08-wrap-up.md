@@ -18,4 +18,3 @@ Learner guide: [08 Wrap-up](../learner/08-wrap-up.md)
 - Which trace view changed how you would debug an LLM app?
 - Which monitor would you create first for your own product?
 - What real examples would seed your first dataset?
-- Where would the Langfuse skill save implementation time in your codebase?
