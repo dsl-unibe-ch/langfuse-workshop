@@ -4,6 +4,7 @@ import { env } from "../src/server/env";
 import { SYSTEM_PROMPT } from "../src/server/support-agent";
 
 // Keep workshop prompt variants in code so changes can be reviewed and republished.
+// The default variant is exactly the fallback prompt used by the application.
 const PROMPT_VARIANTS = {
   default: SYSTEM_PROMPT,
   gentler: `${SYSTEM_PROMPT.trim()}
@@ -26,6 +27,7 @@ function resolvePromptVariant(variantName: string): {
   const normalizedVariantName = variantName.trim() || "default";
 
   if (normalizedVariantName in PROMPT_VARIANTS) {
+    // The key check above makes this type conversion safe.
     const name = normalizedVariantName as WorkshopPromptVariant;
     return { name, prompt: PROMPT_VARIANTS[name] };
   }
@@ -44,6 +46,7 @@ async function main() {
     throw new Error("Langfuse credentials are required to publish prompts.");
   }
 
+  // Use the same Langfuse project configuration as the server and dataset scripts.
   const langfuse = new LangfuseClient({
     publicKey: env.langfusePublicKey,
     secretKey: env.langfuseSecretKey,
@@ -53,6 +56,7 @@ async function main() {
   const name = env.langfusePromptName || "dad-it-support-agent";
   const label = env.langfusePromptLabel || "production";
 
+  // Creating a new version under the same name preserves prompt history in Langfuse.
   await langfuse.prompt.create({
     name,
     type: "text",
@@ -63,4 +67,5 @@ async function main() {
   console.log(`Published prompt "${name}" (${variant.name} variant) with label "${label}".`);
 }
 
+// Start the command-line script without introducing top-level await.
 void main();

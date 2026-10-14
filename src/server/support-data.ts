@@ -1,5 +1,6 @@
 import type { SupportContext } from "../shared/types";
 
+// One guide is a small, predefined help article that the search tool can return.
 export type GuideArticle = {
   id: string;
   title: string;
@@ -9,6 +10,8 @@ export type GuideArticle = {
   caution?: string;
 };
 
+// This fixed profile gives the demo agent concrete information about Dad's setup.
+// Change these values when adapting the workshop to another user or device.
 export const DEFAULT_SUPPORT_CONTEXT: SupportContext = {
   id: "dad-default",
   label: "Dad",
@@ -34,6 +37,7 @@ export const DEFAULT_SUPPORT_CONTEXT: SupportContext = {
   ]
 };
 
+// The local support library keeps the demo deterministic and avoids external search APIs.
 export const GUIDE_LIBRARY: GuideArticle[] = [
   {
     id: "iphone-bluetooth",
@@ -112,15 +116,19 @@ export const GUIDE_LIBRARY: GuideArticle[] = [
   }
 ];
 
+// Return the fixed profile when the model requests get_support_context.
 export function getSupportContext() {
   return DEFAULT_SUPPORT_CONTEXT;
 }
 
+// Rank guides by simple word overlap and return the three closest matches.
 export function searchGuides(question: string) {
+  // Normalize punctuation and casing so terms such as "Wi-Fi" can still match.
   const normalizedQuestion = question.toLowerCase();
   const terms = normalizedQuestion.split(/[^a-z0-9]+/).filter(Boolean);
 
   return GUIDE_LIBRARY.map((guide) => {
+    // Search the guide title, summary, and manually supplied keywords together.
     const guideText = `${guide.title} ${guide.summary} ${guide.searchableTerms.join(" ")}`.toLowerCase();
     const score = terms.reduce((total, term) => {
       return total + (guideText.includes(term) ? 1 : 0);
@@ -128,6 +136,7 @@ export function searchGuides(question: string) {
 
     return { guide, score };
   })
+    // Remove unrelated guides, rank the rest, and keep the model context small.
     .filter(({ score }) => score > 0)
     .sort((left, right) => right.score - left.score)
     .slice(0, 3)

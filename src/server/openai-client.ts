@@ -15,9 +15,11 @@ export function createOpenAIClient(): OpenAI {
       .map(([name]) => name);
 
     if (missing.length > 0) {
+      // List every missing value at once so workshop setup is easier to fix.
       throw new Error(`Missing Azure OpenAI configuration: ${missing.join(", ")}`);
     }
 
+    // Azure uses its dedicated SDK client and deployment-based model routing.
     return new AzureOpenAI({
       apiKey: env.azureOpenAIApiKey,
       endpoint: env.azureOpenAIEndpoint,
@@ -27,6 +29,7 @@ export function createOpenAIClient(): OpenAI {
   }
 
   if (env.openaiProvider === "gpustack") {
+    // The OpenAI-compatible GPUStack endpoint still requires its own API key.
     if (!env.gpuStackApiKey) {
       throw new Error("Missing GPUStack configuration: GPUSTACK_API_KEY");
     }

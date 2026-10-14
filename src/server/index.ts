@@ -16,6 +16,7 @@ const sdk = new NodeSDK({ spanProcessors: [langfuseSpanProcessor] });
 sdk.start();
 
 // Validate chat requests before passing them into the agent.
+// Zod rejects malformed requests before they can reach the model or tools.
 const requestSchema = z.object({
   sessionId: z.string().min(1),
   userId: z.string().optional(),
@@ -32,6 +33,8 @@ const requestSchema = z.object({
 });
 
 const app = express();
+
+// Parse JSON request bodies while preventing unexpectedly large payloads.
 app.use(express.json({ limit: "1mb" }));
 
 // Lightweight status endpoint for setup checks and provider debugging.
@@ -51,16 +54,20 @@ app.get("/api/support-context", (_request, response) => {
 // Main chat endpoint: validate input, run the agent, and return its answer.
 app.post("/api/chat", async (request, response) => {
   try {
+    // Convert unknown request data into the ChatRequest shape used by the agent.
     const payload = requestSchema.parse(request.body) as ChatRequest;
     const result = await runSupportConversation(payload);
     response.json(result);
   } catch (error) {
+    // Return validation and provider errors to the browser as readable messages.
     const message = error instanceof Error ? error.message : "Unknown server error";
     response.status(400).send(message);
   }
 });
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+
+// Resolve dist relative to this file in both development and compiled builds.
 const clientDist = path.resolve(currentDir, "../../dist");
 
 // In production, serve the built Vite app from dist.
@@ -75,12 +82,15 @@ const server = app.listen(env.port, "127.0.0.1", () => {
 
 // Flush Langfuse spans before the process exits so local traces are not lost.
 async function shutdown() {
+  // Finish active HTTP requests before flushing telemetry.
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
       if (error) reject(error);
       else resolve();
     });
   });
+
+  // Langfuse sends traces in the background, so wait for them before exiting.
   await langfuseSpanProcessor.forceFlush();
   await sdk.shutdown();
 }

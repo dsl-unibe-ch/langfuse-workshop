@@ -5,12 +5,17 @@ const openaiProvider =
   process.env.OPENAI_PROVIDER === "openai" || process.env.OPENAI_PROVIDER === "gpustack"
     ? process.env.OPENAI_PROVIDER
     : "azure";
+
+// Keep provider-specific defaults close to the variables that select them.
 const azureOpenAIDeployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "";
 const gpuStackModel = process.env.GPUSTACK_MODEL ?? "gpt-oss-120b";
 
 // Read environment variables once so the rest of the app uses one typed configuration object.
 export const env = {
+  // Local HTTP server.
   port: Number(process.env.PORT ?? 8787),
+
+  // Model-provider configuration. Only the selected provider is used at runtime.
   openaiProvider,
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-5.5-2026-04-23",
@@ -21,6 +26,7 @@ export const env = {
   gpuStackApiKey: process.env.GPUSTACK_API_KEY ?? "",
   gpuStackBaseUrl: process.env.GPUSTACK_BASE_URL ?? "https://gpustack.unibe.ch/v1",
   gpuStackModel,
+
   // Azure uses its deployment name; GPUStack and OpenAI use their configured model names.
   chatModel:
     openaiProvider === "azure" && azureOpenAIDeployment
@@ -28,6 +34,8 @@ export const env = {
       : openaiProvider === "gpustack"
         ? gpuStackModel
       : (process.env.OPENAI_MODEL ?? "gpt-5.5-2026-04-23"),
+
+  // Langfuse project, prompt, and dataset configuration.
   langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY ?? "",
   langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY ?? "",
   langfuseBaseUrl: process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com",

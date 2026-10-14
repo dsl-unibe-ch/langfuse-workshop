@@ -3,12 +3,14 @@ import { LangfuseClient } from "@langfuse/client";
 import seedDataset from "../data/seed-dataset.json";
 import { env } from "../src/server/env";
 
+// Read local JSON examples and upload them into the configured Langfuse project.
 async function main() {
   // Fail early instead of attempting dataset writes without Langfuse credentials.
   if (!env.langfusePublicKey || !env.langfuseSecretKey) {
     throw new Error("Langfuse credentials are required to seed a dataset.");
   }
 
+  // Use the same project credentials and host as the traced application.
   const langfuse = new LangfuseClient({
     publicKey: env.langfusePublicKey,
     secretKey: env.langfuseSecretKey,
@@ -26,6 +28,7 @@ async function main() {
       }
     });
   } catch (error) {
+    // Ignore only the expected "already exists" response; surface real API failures.
     if (!(error instanceof Error) || !/exists|duplicate/i.test(error.message)) {
       throw error;
     }
@@ -33,6 +36,7 @@ async function main() {
 
   // Upload each local JSON example as one Langfuse dataset item.
   for (const item of seedDataset) {
+    // Stable IDs make each JSON entry recognizable across repeated workshop runs.
     await langfuse.api.datasetItems.create({
       id: item.id,
       datasetName: env.datasetName,
@@ -47,4 +51,5 @@ async function main() {
   console.log(`Seeded dataset "${env.datasetName}" with ${seedDataset.length} items.`);
 }
 
+// Start the command-line script without introducing top-level await.
 void main();

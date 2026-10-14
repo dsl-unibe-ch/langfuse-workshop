@@ -101,6 +101,7 @@ Actual assistant output: {{assistant_output}}
 Expected output: {{expected_output}}`;
 
 function renderCorrectnessPrompt(answer: string, idealAnswer: string) {
+  // Insert the actual and expected answers into the judge instructions.
   return CORRECTNESS_PROMPT.replaceAll("{{assistant_output}}", answer).replaceAll(
     "{{expected_output}}",
     idealAnswer
@@ -108,6 +109,7 @@ function renderCorrectnessPrompt(answer: string, idealAnswer: string) {
 }
 
 function parseCorrectnessScore(value: unknown): boolean {
+  // Accept common boolean representations while treating unknown values as a failure.
   if (typeof value === "boolean") {
     return value;
   }
@@ -122,6 +124,7 @@ function parseCorrectnessScore(value: unknown): boolean {
 }
 
 async function scoreCorrectness(answer: string, idealAnswer: string) {
+  // Trace the judge call separately so its prompt, response, latency, and tokens are visible.
   const openai = observeOpenAI(createOpenAIClient());
   const response = await openai.chat.completions.create({
     model: env.chatModel,
@@ -139,6 +142,7 @@ async function scoreCorrectness(answer: string, idealAnswer: string) {
     ]
   });
 
+  // Parse the judge's JSON defensively; malformed output becomes a failed score.
   const raw = response.choices[0]?.message?.content ?? "{}";
   let parsed: { score?: unknown; reasoning?: unknown } = {};
   try {
@@ -147,6 +151,7 @@ async function scoreCorrectness(answer: string, idealAnswer: string) {
     parsed = {};
   }
 
+  // Convert the boolean decision to the numeric score format expected by Langfuse.
   const passed = parseCorrectnessScore(parsed.score);
   const score = passed ? 1 : 0;
   const reasoning =
@@ -171,6 +176,7 @@ function toRuntimeMessages(input: DatasetInput) {
 }
 
 function assertProviderConfigured() {
+  // Fail before starting a 14-item run when the selected provider is incomplete.
   if (env.openaiProvider === "openai" && !env.openaiApiKey) {
     throw new Error("OPENAI_API_KEY is required when OPENAI_PROVIDER=openai.");
   }
@@ -188,6 +194,9 @@ function assertProviderConfigured() {
       throw new Error(`Missing Azure OpenAI configuration: ${missing.join(", ")}`);
     }
   }
+  if (env.openaiProvider === "gpustack" && !env.gpuStackApiKey) {
+    throw new Error("GPUSTACK_API_KEY is required when OPENAI_PROVIDER=gpustack.");
+  }
 }
 
 async function main() {
@@ -204,7 +213,10 @@ async function main() {
     baseUrl: env.langfuseBaseUrl
   });
 
+  // The dataset must already exist; npm run dataset:seed creates it.
   const dataset = await langfuse.dataset.get(env.datasetName);
+
+  // A timestamp keeps repeated experiment runs separate in the Langfuse UI.
   const runName = `dad-it-support-${new Date().toISOString()}`;
 
   // --- 6. runExperiment iterates the dataset, calls `task` for each
@@ -266,6 +278,8 @@ async function main() {
   // --- 7. Pretty-print the summary table and flush any pending spans
   //        before the process exits.
   console.log(await result.format());
+
+  // Wait for scores and traces to leave this short-lived script before it exits.
   await langfuse.flush();
   await langfuseSpanProcessor.forceFlush();
   await sdk.shutdown();

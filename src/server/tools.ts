@@ -5,6 +5,7 @@ import { observe } from "@langfuse/tracing";
 type ToolResult = Record<string, unknown>;
 
 // JSON schemas sent to the model so it knows which tools exist and how to call them.
+// They describe possible requests; the TypeScript implementations appear below.
 export const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
@@ -43,6 +44,7 @@ const getSupportContextTool = observe(
   async () => {
     const context = getSupportContext();
 
+    // Return only the profile fields that help the model answer the current question.
     return {
       ok: true,
       context: {
@@ -64,6 +66,7 @@ const searchHelpLibraryTool = observe(
   async (input: { question: string }) => {
     const guides = searchGuides(input.question);
 
+    // Convert internal guide objects into a compact, model-facing result.
     return {
       ok: true,
       results: guides.map((guide) => ({
@@ -80,14 +83,17 @@ const searchHelpLibraryTool = observe(
 
 // Dispatch the tool call requested by the model to the matching local implementation.
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<ToolResult> {
+  // The model supplies a tool name; this switch decides which local function actually runs.
   switch (name) {
     case "get_support_context":
       return getSupportContextTool();
 
     case "search_help_library":
+      // Normalize unknown model input to the string expected by the search helper.
       return searchHelpLibraryTool({ question: String(input.question ?? "") });
 
     default:
+      // Never execute arbitrary names supplied by the model.
       return { ok: false, error: `Unsupported tool: ${name}` };
   }
 }
