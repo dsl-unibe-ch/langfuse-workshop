@@ -24,5 +24,16 @@ export function createOpenAIClient(): OpenAI {
     });
   }
 
+  if (env.openaiProvider === "gpustack") {
+    if (!env.gpuStackApiKey) {
+      throw new Error("Missing GPUStack configuration: GPUSTACK_API_KEY");
+    }
+
+    return new OpenAI({
+      apiKey: env.gpuStackApiKey,
+      baseURL: env.gpuStackBaseUrl
+    });
+  }
+
   return new OpenAI({ apiKey: env.openaiApiKey });
 }

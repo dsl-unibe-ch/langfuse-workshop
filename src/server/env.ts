@@ -1,7 +1,11 @@
 import "./load-env";
 
-const openaiProvider = process.env.OPENAI_PROVIDER === "openai" ? "openai" : "azure";
+const openaiProvider =
+  process.env.OPENAI_PROVIDER === "openai" || process.env.OPENAI_PROVIDER === "gpustack"
+    ? process.env.OPENAI_PROVIDER
+    : "azure";
 const azureOpenAIDeployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "";
+const gpuStackModel = process.env.GPUSTACK_MODEL ?? "gpt-oss-120b";
 
 export const env = {
   port: Number(process.env.PORT ?? 8787),
@@ -12,9 +16,14 @@ export const env = {
   azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT ?? "",
   azureOpenAIDeployment,
   azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION ?? "2024-10-01-preview",
+  gpuStackApiKey: process.env.GPUSTACK_API_KEY ?? "",
+  gpuStackBaseUrl: process.env.GPUSTACK_BASE_URL ?? "https://gpustack.unibe.ch/v1",
+  gpuStackModel,
   chatModel:
     openaiProvider === "azure" && azureOpenAIDeployment
       ? azureOpenAIDeployment
+      : openaiProvider === "gpustack"
+        ? gpuStackModel
       : (process.env.OPENAI_MODEL ?? "gpt-5.5-2026-04-23"),
   langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY ?? "",
   langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY ?? "",
