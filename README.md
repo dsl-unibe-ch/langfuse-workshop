@@ -1,5 +1,12 @@
 <img width="2400" height="600" alt="hero-b (1)" src="https://github.com/user-attachments/assets/a8fa4fbf-fd68-4167-acc4-0f68497602b3" />
 
+# DSL Langfuse Workshop
+This workshop is based on the original Langfuse Academy Workshop, developed by the Langfuse team.
+
+The material has been adapted. Adaptations mainly include additional explanations and support for alternative LLM providers.
+
+The original workshop, including all modules and learning resources, is available in the official Langfuse repository.
+
 # Langfuse Workshop - the AI engineering loop, end to end
 
 This is a step-by-step Langfuse workshop built on a small TypeScript sample application: the **Dad IT Support Agent**. The workshop covers the full AI engineering loop with Langfuse: tracing, prompt management, monitoring, datasets, experiments, and evaluation.
