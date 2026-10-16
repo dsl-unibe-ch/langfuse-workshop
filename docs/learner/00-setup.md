@@ -1,13 +1,13 @@
 ---
 title: "Workshop: Setup"
-description: "Set up the workshop app with Azure OpenAI / OpenAI Platform credentials and Langfuse credentials, then verify the local Dad IT Support Agent."
+description: "Set up the workshop app with GPUStack, Azure OpenAI, or OpenAI Platform credentials and Langfuse credentials, then verify the local Dad IT Support Agent."
 ---
 
 # 00 Setup
 
 ## Goal
 
-Have the workshop app running locally with both OpenAI and Langfuse credentials in place. From here you can skim `01-base-app`, then start building in `02-tracing`.
+Have the workshop app running locally with model-provider and Langfuse credentials in place. From here you can skim `01-base-app`, then start building in `02-tracing`.
 
 > ⚠️ Use **Langfuse Cloud** so you have the latest features this workshop describes. Self-hosted instances may be on an older version and will not match the lessons.
 
@@ -58,7 +58,8 @@ Replace `02-tracing` with the lesson you want to start.
 
 ## Step 1 — Get the API keys
 
-1. **Model provider** — use either an OpenAI Platform key or Azure OpenAI deployment.
+1. **Model provider** — GPUStack is the default for this workshop. Azure OpenAI and OpenAI Platform are also supported.
+   - GPUStack: use the API key provided by the University of Bern or the workshop organizer. The workshop uses the OpenAI-compatible endpoint `https://gpustack.unibe.ch/v1` and model `gpt-oss-120b`.
    - OpenAI Platform: [platform.openai.com](https://platform.openai.com) → API Keys → create one. Copy the `sk-...` value.
    - Azure OpenAI: add Azure OpenAI API key, endpoint, deployment name, and API version.
 2. **Langfuse** — sign up at [langfuse.com](https://langfuse.com) on the **EU region**, create a project, and copy the public + secret keys from **Settings → API Keys**.
@@ -70,7 +71,19 @@ Replace `02-tracing` with the lesson you want to start.
 cp .env.example .env
 ```
 
-Azure OpenAI is the default for this workshop. Fill in:
+GPUStack is the default for this workshop. It provides an OpenAI-compatible API, so the application can use the standard OpenAI client with a different base URL. Fill in:
+
+```bash
+OPENAI_PROVIDER=gpustack
+GPUSTACK_API_KEY=...
+GPUSTACK_BASE_URL=https://gpustack.unibe.ch/v1
+GPUSTACK_MODEL=gpt-oss-120b
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+```
+
+If you are using Azure OpenAI instead, fill in:
 
 ```bash
 OPENAI_PROVIDER=azure
