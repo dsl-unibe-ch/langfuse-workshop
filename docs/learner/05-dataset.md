@@ -21,7 +21,7 @@ DATASET_NAME=dad-it-support-workshop
 
 ## Why build datasets
 
-A dataset is your representation of what the system will face in production — the inputs you expect, and for each, what a good answer looks like. With a clear set of expectations written down, you can rerun the agent against them after every change and know whether you helped or hurt. A good dataset is the foundation for shipping confidently and iterating without regressing.
+A dataset is your representation of what the system will face in production — the inputs or questions you expect, and for each, what a good answer looks like. With a clear set of expected queries written down, you can rerun the agent against them after every change and know whether you helped or hurt. A good dataset is the foundation for shipping confidently and iterating without regressing.
 
 Learn more in the [Langfuse Academy lesson on datasets](https://langfuse.com/academy/datasets).
 
