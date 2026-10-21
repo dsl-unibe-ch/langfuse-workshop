@@ -121,7 +121,7 @@ and change it to:
 const openai = observeOpenAI(createOpenAIClient());
 ```
 
-That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps whichever client it returns. This is why the same code still works whether your `.env` points to Azure OpenAI or the OpenAI Platform.
+That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps whichever client it returns. This is why the same code still works whether your `.env` points to GPUStack, Azure OpenAI, or the OpenAI Platform.
 
 The important line is still the normal SDK call below it:
 
