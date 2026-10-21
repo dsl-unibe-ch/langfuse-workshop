@@ -1,6 +1,6 @@
 ---
 title: "Workshop: Tracing an LLM Agent with Langfuse"
-description: "Instrument the support agent so one chat turn becomes a Langfuse trace with OpenAI generations, agent observations, and tool calls."
+description: "Instrument the support agent so one chat turn becomes a Langfuse trace with LLM generations, agent observations, and tool calls."
 ---
 
 # 02 Tracing
@@ -20,7 +20,7 @@ LLM apps are harder to debug than normal deterministic code because the model ca
 A Langfuse trace gives us a step-by-step record of one chat turn. In this workshop, one trace should show:
 
 - the user's question,
-- each OpenAI/Azure OpenAI model call,
+- each LLM call,
 - each local tool call,
 - the data returned by those tools,
 - and the final answer sent back to the user.
@@ -31,22 +31,22 @@ If you want the bigger-picture motivation, see the [Langfuse Academy lesson on t
 
 ## Goal
 
-When Dad asks "How do I turn Bluetooth on?", the agent doesn't just hit OpenAI once. Behind the scenes it asks OpenAI what to do, calls `get_support_context` to fetch Dad's iPhone setup, asks OpenAI again, calls `search_help_library` for Bluetooth steps, then asks OpenAI one more time to produce the numbered answer. 
+When Dad asks "How do I turn Bluetooth on?", the agent doesn't just call the LLM once. Behind the scenes it asks the LLM what to do, calls `get_support_context` to fetch Dad's iPhone setup, asks the LLM again, calls `search_help_library` for Bluetooth steps, then asks the LLM one more time to produce the numbered answer.
 
-The goal of this chapter is to make every one of those steps visible in Langfuse — one chat turn becomes one trace, with the agent run, the OpenAI generations, and the two tool calls all logged in order.
+The goal of this chapter is to make every one of those steps visible in Langfuse — one chat turn becomes one trace, with the agent run, the LLM generations, and the two tool calls all logged in order.
 
 ![Spec's step by step process](../images/tracing/process_illustration.png)
 
 We will build up the trace in three steps that mirror the agent's structure:
 
-1. **Trace the model call** — record each OpenAI/Azure OpenAI request and response in Langfuse. This shows what messages were sent to the model, which model was used, and what the model returned.
+1. **Trace the model call** — record each LLM request and response in Langfuse. This shows what messages were sent to the model, which model was used, and what the model returned.
 2. **Wrap the full chat turn** — group the whole user message -> agent answer flow into one Langfuse trace. Inside that trace, Langfuse shows the model call and, later, the tool calls as child observations.
 3. **Trace the tool calls** — record the local TypeScript functions the model asked the app to run, including their inputs and returned data.
 
 
 ## Step 1 — Trace the model call
 
-We want observability on the OpenAI/Azure OpenAI calls themselves: what messages were sent, what the model returned, which model was used, and how much time and token usage the call took.
+We want observability on the LLM calls themselves: what messages were sent, what the model returned, which model was used, and how much time and token usage the call took.
 
 There are two parts to this step:
 
@@ -101,7 +101,7 @@ Now that the server knows how to send traces to Langfuse, we need to create some
 
 `support-agent.ts` is the file that contains the actual agent logic. It builds the system prompt, sends messages to the OpenAI-compatible client, reads any tool calls requested by the model, executes those tools, and finally returns the assistant answer to the Express route in `index.ts`.
 
-For this first tracing step, we only instrument the model call. That means every time the agent calls OpenAI/Azure OpenAI, Langfuse will record the request, response, model name, token usage, and latency.
+For this first tracing step, we only instrument the model call. That means every time the agent calls the LLM, Langfuse will record the request, response, model name, token usage, and latency.
 
 Add the import:
 
@@ -109,7 +109,7 @@ Add the import:
 import { observeOpenAI } from "@langfuse/openai";
 ```
 
-Then **wrap the OpenAI client where you create it**. Find this line in `runSupportConversation`:
+Then **wrap the OpenAI-compatible client where you create it**. Find this line in `runSupportConversation`:
 
 ```ts
 const openai = createOpenAIClient();
@@ -121,7 +121,7 @@ and change it to:
 const openai = observeOpenAI(createOpenAIClient());
 ```
 
-That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps whichever client it returns. This is why the same code still works whether your `.env` points to GPUStack, Azure OpenAI, or the OpenAI Platform.
+That's the entire diff for tracing the model call. The provider-specific setup stays in `createOpenAIClient`, and `observeOpenAI` wraps whichever client it returns. This is why the same tracing code works regardless of which LLM provider your `.env` selects.
 
 The important line is still the normal SDK call below it:
 
@@ -131,17 +131,17 @@ openai.chat.completions.create(...)
 
 Because `openai` is wrapped with `observeOpenAI(...)`, every model request made through this client is automatically recorded in Langfuse as a generation. The model call itself still works normally; the wrapper only adds tracing around it, capturing details such as the model, input, output, token usage, duration, and errors.
 
-At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the OpenAI calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
+At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the LLM calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
 
 To open Langfuse, go to [cloud.langfuse.com](https://cloud.langfuse.com), sign in, select your workshop project, and open **Traces** in the sidebar.
 
-**Verify:** `npm run dev`, ask one question, refresh Langfuse — you should see one generation per OpenAI call with prompt, response, tokens, and latency. Each generation is still its own top-level trace; we fix that next.
+**Verify:** `npm run dev`, ask one question, refresh Langfuse — you should see one generation per LLM call with prompt, response, tokens, and latency. Each generation is still its own top-level trace; we fix that next.
 
 ![Langfuse Traces view after Step 1 — each chat turn appears as standalone openai-chat-completion generations.](../images/tracing/02-tracing-step-1.png)
 
 ## Step 2 — Wrap the full chat turn
 
-After Step 1, Langfuse can see the individual OpenAI/Azure OpenAI calls. But each model call still looks like a separate trace. 
+After Step 1, Langfuse can see the individual LLM calls. But each model call still looks like a separate trace.
 In Step 2, we wrap the whole `runSupportConversation(...)` function. This function is the main entry point for one chat turn: it receives the user's chat request, runs the agent logic, and returns the assistant response.
 
 By wrapping this function with `observe(...)`, Langfuse gets one parent observation for the whole chat turn. The model calls from Step 1 are then grouped inside that same trace. The trace becomes easier to read:
@@ -213,15 +213,15 @@ index.ts
     Langfuse records the final ChatResponse as the parent output
 ```
 
-**Verify:** one chat turn should now show up as a single `dad-it-support-chat-turn` observation with the OpenAI generation nested underneath.
+**Verify:** one chat turn should now show up as a single `dad-it-support-chat-turn` observation with the LLM generation nested underneath.
 
-![Trace tree after Step 2 — one dad-it-support-chat-turn agent root with the OpenAI generation as a child.](../images/tracing/02-tracing-step-2.png)
+![Trace tree after Step 2 — one dad-it-support-chat-turn agent root with the LLM generation as a child.](../images/tracing/02-tracing-step-2.png)
 
 
 
 ## Step 3 — Recording tool calls
 
-The OpenAI generation already mentions the tool calls in its `tool_calls` output, but we have no observation for the actual tool execution — no way to see what input went in and what came out. The same `observe(...)` pattern, can be applied to each tool.
+The LLM generation already mentions the tool calls in its `tool_calls` output, but we have no observation for the actual tool execution — no way to see what input went in and what came out. The same `observe(...)` pattern can be applied to each tool.
 
 ### `src/server/tools.ts`
 
@@ -232,7 +232,7 @@ Keep the difference between two pieces of code clear:
 - `TOOL_DEFINITIONS` is only the schema sent to the model. It tells the model which tools exist and which arguments each tool accepts.
 - `executeTool(...)` is the local dispatcher. It receives the tool name chosen by the model and runs the matching TypeScript function.
 
-Before this step, Langfuse can see that the model requested a tool call because that request appears in the OpenAI generation output. But Langfuse cannot yet see the actual local work: what `getSupportContext()` returned, what question went into `searchGuides(...)`, or which guide results came back.
+Before this step, Langfuse can see that the model requested a tool call because that request appears in the LLM generation output. But Langfuse cannot yet see the actual local work: what `getSupportContext()` returned, what question went into `searchGuides(...)`, or which guide results came back.
 
 The fix is to move each local tool body into a small observed helper. Then `executeTool(...)` keeps the same public contract, but routes to those observed helpers instead of doing the work inline.
 
@@ -302,7 +302,7 @@ dad-it-support-chat-turn
   openai-chat-completion     model writes the final answer
 ```
 
-![Full trace after Step 3 — dad-it-support-chat-turn (agent) with the OpenAI generation and get_support_context + search_help_library tool observations as siblings underneath.](../images/tracing/02-tracing-step-3.png)
+![Full trace after Step 3 — dad-it-support-chat-turn (agent) with the LLM generation and get_support_context + search_help_library tool observations as siblings underneath.](../images/tracing/02-tracing-step-3.png)
 
 
 ## How to verify you are done
