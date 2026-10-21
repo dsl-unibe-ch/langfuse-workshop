@@ -11,7 +11,7 @@ description: "Instrument the support agent so one chat turn becomes a Langfuse t
 git checkout checkpoint/02-tracing
 ```
 
-This is the blank slate for the tracing step — same code as `checkpoint/01-base-app`, with no Langfuse wiring yet. The Langfuse packages are already in `package.json` — run `npm install` if you haven't. Make sure `.env` has either your OpenAI Platform values or your Azure OpenAI values, plus your Langfuse keys.
+This is the blank slate for the tracing step — same code as `checkpoint/01-base-app`, with no Langfuse wiring yet. The Langfuse packages are already in `package.json` — run `npm install` if you haven't. Make sure `.env` has your LLM keys and your Langfuse keys.
 
 ## Why we trace
 
