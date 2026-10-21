@@ -100,9 +100,12 @@ await dataset.runExperiment({
 
 Three things to understand:
 
-- **`task`** is *your application logic* — we call straight into `runSupportConversation(...)`, which means every trace this script produces looks identical to a production trace.
-- **`evaluators`** is a list of callbacks. Each evaluator runs after `task` returns and attaches a score to the item trace. Here we use one deterministic evaluator and one LLM-as-a-judge evaluator.
-- **`runName`** groups every per-item trace into one row in the Langfuse Experiments view. Pick a name that changes per run (we include the timestamp) so two runs don't collide.
+- **`task`: What should be tested?**
+  Langfuse calls `task` once for every dataset item. In our case, `task` sends the dataset question to `runSupportConversation(...)` and returns the agent's answer. Because this is the same function used by the production chat application, the experiment evaluates the production agent implementation rather than a separate test implementation.
+- **`evaluators`: How should each answer be assessed?**
+  After `task` returns an answer, every function in the `evaluators` list examines it and produces a score. In this workshop, `keyword_overlap` checks whether expected keywords occur, and `correctness` asks another LLM to judge the answer.
+- **`runName`: Which experiment execution does this result belong to?**
+  One execution of the script processes all dataset items. Each item creates its own result and trace, but they all share the same `runName`. Langfuse therefore groups them into one experiment run. The timestamp gives each execution a unique name, allowing you to compare today's run with a later run.
 
 ## Step 2 — Review the deterministic `keyword_overlap` evaluator
 
@@ -125,7 +128,7 @@ Inside `scripts/run-dataset.ts`, `scoreCorrectness(...)` implements the LLM-as-a
 - the agent's actual answer from `task`
 - the ideal answer from `expectedOutput.idealAnswer`
 
-The helper uses `createOpenAIClient()`, the same Azure/OpenAI provider factory as the app. That keeps the experiment runner compatible with workshop environments that use Azure OpenAI instead of an OpenAI Platform key. The judge client is also wrapped with `observeOpenAI(...)`, so the evaluator's own model call is traced and can be inspected in Langfuse.
+The helper uses `createOpenAIClient()`, the same LLM provider factory as the application. This means the experiment runner uses the provider selected through `OPENAI_PROVIDER`, whether that is GPUStack, Azure OpenAI, or the OpenAI Platform. The judge client is also wrapped with `observeOpenAI(...)`, so the evaluator's own model call is traced and can be inspected in Langfuse.
 
 The judge is asked to return JSON with a boolean `score` and a short `reasoning` comment. The evaluator then maps that to a numeric Langfuse score named `correctness`:
 
@@ -139,43 +142,7 @@ return {
 
 This is the key difference from the UI-managed path: here, `scripts/run-dataset.ts` owns the judge prompt, calls the judge model, parses the result, and sends the score to Langfuse.
 
-## Step 4 — Optional alternative: configure `correctness` in Langfuse
-
-The main workshop path above runs `correctness` from code. Langfuse can also run the same kind of LLM-as-a-judge evaluator for you from the UI. The logic moves to a different place:
-
-```text
-Script-run judge:
-scripts/run-dataset.ts runs the judge model and returns the correctness score.
-
-UI-managed judge:
-scripts/run-dataset.ts sends the experiment output to Langfuse, then Langfuse runs the judge and writes the correctness score later.
-```
-
-If you want to show the UI-managed alternative, configure it like this:
-
-1. In Langfuse, open **Evaluators → New evaluator** and pick the **Correctness** template.
-2. Target the runs from this dataset:
-   - Run on: **Experiments** (Default is observation, make sure to select the right 'Run on')
-   - Filter where: Dataset is 'dad-it-support-workshop'
-3. Map the template variables. In the UI, set the **Source** dropdown first, then add JsonPath only where needed:
-
-   | Variable | Object Field | JsonPath |
-   | --- | --- | --- |
-   | `query` | **Input** | `$.messages[-1].content` |
-   | `generation` | **Output** | Leave blank |
-   | `ground_truth` | **Expected Output** | `$.idealAnswer` |
-
-   A common broken setup is leaving all three variables on **Input** because that dropdown shows up first. If `generation` or `ground_truth` point to **Input**, the evaluator reads the wrong data for every run.
-4. Use the default judge model you configured in session 4 or in the fresh project check above, or pick another structured-output-capable judge model, and save.
-5. Enable the evaluator.
-
-Why target **Dataset runs** here? Because for this workshop we want the score to appear on the dataset run items and in the run comparison view.
-
-If you enable the UI-managed evaluator while the script also returns a score named `correctness`, you may see duplicate or competing correctness scores. For the main workshop path, use the script-run judge and treat this UI setup as an alternative demonstration.
-
-![Correctness Variable Mapping](../images/experiments/correctness-variable-mapping.png)
-
-## Step 5 — Run the dataset
+## Step 4 — Run the dataset
 
 ```bash
 npm run dataset:run
@@ -183,7 +150,7 @@ npm run dataset:run
 
 The script finishes by printing a formatted run summary in the console. Item-level traces and scores show up in Langfuse as the run executes.
 
-The script attaches both `keyword_overlap` and `correctness` itself. If you also configured the optional UI-managed evaluator in Step 4, that platform-side score may continue filling in for a short time afterward because it runs asynchronously in Langfuse.
+The script attaches both `keyword_overlap` and `correctness` itself.
 
 ## What to inspect in Langfuse
 
