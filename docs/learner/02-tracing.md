@@ -133,6 +133,8 @@ Because `openai` is wrapped with `observeOpenAI(...)`, every model request made 
 
 At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the OpenAI calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
 
+To open Langfuse, go to [cloud.langfuse.com](https://cloud.langfuse.com), sign in, select your workshop project, and open **Traces** in the sidebar.
+
 **Verify:** `npm run dev`, ask one question, refresh Langfuse — you should see one generation per OpenAI call with prompt, response, tokens, and latency. Each generation is still its own top-level trace; we fix that next.
 
 ![Langfuse Traces view after Step 1 — each chat turn appears as standalone openai-chat-completion generations.](../images/tracing/02-tracing-step-1.png)
