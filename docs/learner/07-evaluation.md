@@ -119,30 +119,6 @@ Things to look for:
 
 Closing the loop — change → rerun → compare → decide — is what makes prompt or model changes go from gut calls to engineering decisions. Every future change has a free baseline to measure against.
 
-## Bonus: evaluating RAG systems with Ragas
-
-This workshop changes the prompt because it is the quickest way to demonstrate the **change → rerun → compare** loop. In a real application, evaluation can happen at several levels: the prompt, model, retrieved context, tool results, final answer, latency, cost, or the complete agent workflow.
-
-[Ragas](https://langfuse.com/integrations/frameworks/ragas) (often written **RAGAS**) is an open-source evaluation framework designed especially for **Retrieval-Augmented Generation (RAG)** applications. A RAG application first retrieves relevant information from a knowledge source and then gives that context to an LLM when generating its answer.
-
-Ragas provides established metrics for questions such as:
-
-- **Faithfulness** — is the generated answer supported by the retrieved context, or does it introduce unsupported claims?
-- **Answer relevancy** — does the answer address the user's question?
-- **Context precision** — how much of the retrieved context was actually relevant?
-- **Context recall** — did the retriever find the information needed to answer correctly?
-
-Ragas and Langfuse have different roles and work well together:
-
-- **Ragas computes the evaluation metric.** Depending on the metric, it uses the question, retrieved context, generated answer, an expected answer, or a judge model.
-- **Langfuse provides the evaluation infrastructure.** It stores datasets and traces, runs experiments, attaches the Ragas results as scores, and lets you compare and analyze those scores across runs.
-
-The official Langfuse integration supports using Ragas metrics as evaluator functions in experiments. The scores then appear on the corresponding Langfuse traces and dataset runs like other scores. Ragas can also evaluate sampled production traces outside Langfuse and write the resulting scores back through the Langfuse SDK or API. For teams that do not want to operate a separate evaluation job, Langfuse also offers managed LLM-as-a-judge evaluators, including evaluators developed in partnership with Ragas.
-
-Our Dad IT Support Agent searches a small predefined help library, but it is not a full production RAG system with a vector database and retrieval pipeline. We therefore stay with `keyword_overlap` and `correctness` in this workshop. In a RAG application, you would additionally trace the user question, retrieved contexts, and final answer, then use Ragas metrics to evaluate retrieval quality and answer grounding.
-
-Further reading: [Langfuse Ragas integration](https://langfuse.com/integrations/frameworks/ragas) and [evaluation of RAG pipelines with Ragas](https://langfuse.com/resources/engineering/evaluation-of-rag-with-ragas).
-
 ## End state
 
 This is the starting point for `08-wrap-up`.
