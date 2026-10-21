@@ -201,6 +201,8 @@ The script attaches both `keyword_overlap` and `correctness` itself. If you also
 
 The two scoring approaches give you two angles on the same run: **keyword match** for "did we cover the right steps?" and **correctness** for "is the answer actually right?" Real evaluation programs often combine deterministic and judge-based checks like this.
 
+In a real evaluation cycle, we would now change one part of the application, rerun the same experiment, and compare both runs. The change could affect the prompt, model, context, tools, or agent workflow. We are not completing that second iteration today, but Lesson 07 contains the full walkthrough for independent learning.
+
 If your team prefers more evaluator logic in the Langfuse UI, the correctness judge can be managed there instead, and the deterministic check could also be migrated into a code evaluator later. The [Code evaluators docs](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators) cover that path, and the [Experiments via SDK docs](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk) show how the code-side setup fits together.
 
 Learn more about experiments in the [Langfuse Academy lesson](https://langfuse.com/academy/experiments).

@@ -64,7 +64,9 @@ The complete workshop consists of the following modules:
 
 In our 90-minute workshop today we will only cover:
 
-`00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, `06 Experiments`, and `07 Evaluation`.
+`00 Setup`, `01 Base App`, `02 Tracing`, `05 Dataset`, and `06 Experiments`.
+
+The remaining modules, including `07 Evaluation`, stay available for independent learning after the workshop.
 
 
 ## How to work through it

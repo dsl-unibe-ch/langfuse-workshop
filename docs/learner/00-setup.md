@@ -40,12 +40,12 @@ For the 90-minute live workshop, we focus on:
 - `checkpoint/02-tracing`
 - `checkpoint/05-dataset`
 - `checkpoint/06-experiments`
-- `checkpoint/07-evaluation`
 
 The complete self-guided workshop also includes:
 
 - `checkpoint/03-prompt-management`
 - `checkpoint/04-monitoring`
+- `checkpoint/07-evaluation`
 - `checkpoint/08-wrap-up`
 
 To move to a checkpoint, run:
