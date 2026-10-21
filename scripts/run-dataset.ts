@@ -128,6 +128,8 @@ async function scoreCorrectness(answer: string, idealAnswer: string) {
   const openai = observeOpenAI(createOpenAIClient());
   const response = await openai.chat.completions.create({
     model: env.chatModel,
+    // Keep OpenAI-compatible providers on the non-streaming JSON response path.
+    stream: false,
     response_format: { type: "json_object" },
     messages: [
       {

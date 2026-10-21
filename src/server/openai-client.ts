@@ -1,6 +1,24 @@
 import OpenAI, { AzureOpenAI } from "openai";
 import { env } from "./env";
 
+async function gpuStackFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const response = await fetch(input, init);
+
+  // GPUStack currently labels non-streaming responses as JSON but prefixes the
+  // body with "data: ". Remove that SSE prefix before the OpenAI SDK parses it.
+  if (!response.headers.get("content-type")?.includes("application/json")) {
+    return response;
+  }
+
+  const body = await response.text();
+  const normalizedBody = body.startsWith("data: ") ? body.slice(6) : body;
+  return new Response(normalizedBody, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+
 // Build the SDK client for the provider selected with OPENAI_PROVIDER.
 export function createOpenAIClient(): OpenAI {
   if (env.openaiProvider === "azure") {
@@ -37,7 +55,8 @@ export function createOpenAIClient(): OpenAI {
     // GPUStack exposes an OpenAI-compatible API at a different base URL.
     return new OpenAI({
       apiKey: env.gpuStackApiKey,
-      baseURL: env.gpuStackBaseUrl
+      baseURL: env.gpuStackBaseUrl,
+      fetch: gpuStackFetch
     });
   }
 

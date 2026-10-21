@@ -111,6 +111,8 @@ async function runSupportConversationInner(request: ChatRequest): Promise<ChatRe
         // Give the model the conversation plus the schemas of tools it may request.
         const response = await openai.chat.completions.create({
           model: env.chatModel,
+          // GPUStack may default to SSE; this workflow expects one JSON response.
+          stream: false,
           messages: transcript,
           tools: TOOL_DEFINITIONS,
           tool_choice: "auto"
