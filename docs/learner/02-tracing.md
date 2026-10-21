@@ -129,7 +129,7 @@ The important line is still the normal SDK call below it:
 openai.chat.completions.create(...)
 ```
 
-Because `openai` is now the observed client, that SDK call emits a Langfuse generation every time it runs.
+Because `openai` is wrapped with `observeOpenAI(...)`, every model request made through this client is automatically recorded in Langfuse as a generation. The model call itself still works normally; the wrapper only adds tracing around it, capturing details such as the model, input, output, token usage, duration, and errors.
 
 At this point you are tracing only the model provider call. That is useful because you can inspect the exact messages sent to the model, the assistant response, token usage, latency, and model name. But the OpenAI calls still appear as separate top-level traces, so the trace list does not yet show that those calls all belonged to one user chat turn.
 
